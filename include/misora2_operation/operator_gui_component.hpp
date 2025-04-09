@@ -58,7 +58,9 @@ public:
 
     //　受け取ったメッセージを格納-------------------------------------
     std_msgs::msg::String id, result_data;
-    sensor_msgs::msg::Image result_image;
+    // sensor_msgs::msg::Image result_image;
+    cv::Mat temporary_image;
+    std::unique_ptr<cv::Mat> result_image;
 
     std::vector<std::string> trigger_list = {"pressure", "qr", "cracks", "metal_loss"};
     explicit DistributeImage(const rclcpp::NodeOptions &options);
@@ -80,11 +82,13 @@ private:
     
     std::map<std::string, rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr> bool_triggers_;
     std::map<std::string, rclcpp::Subscription<std_msgs::msg::String>::SharedPtr> receive_data_;
-    std::map<std::string, rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr> receive_image_;
+    std::map<std::string, rclcpp::Subscription<MyAdaptedType>::SharedPtr> receive_image_;
+
+    rclcpp::Subscription<MyAdaptedType>::SharedPtr receive_raw_image_;// MISORAから来る生画像
 
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr dt_qr_publisher_;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr dt_data_publisher_;
-    rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr dt_image_publisher_;
+    rclcpp::Publisher<MyAdaptedType>::SharedPtr dt_image_publisher_;
     
 };
 

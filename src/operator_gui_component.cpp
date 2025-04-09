@@ -38,26 +38,36 @@ DistributeImage::DistributeImage(const rclcpp::NodeOptions &options)
             if(std::find(trigger_list.begin(), trigger_list.end(), topic) != trigger_list.end()){
                 receive_data_[topic] = this->create_subscription<std_msgs::msg::String>(topic+"_data", 10,
                     [this, topic](const std_msgs::msg::String::SharedPtr msg){
-                    if(not(topic == "qr")) latest_topic = topic;
-                    else latest_qr = true;
-                    result_data = *msg;
+                    if(topic == "qr") {
+                        latest_qr = true;
+                        id = *msg;
+                    }
+                    else {
+                        latest_topic = topic;
+                        result_data = *msg;
+                    }
                 });// 受け取り時の処理
-                receive_image_[topic] = this->create_subscription<sensor_msgs::msg::Image>(topic+"_image",10,
-                    [this,topic](const sensor_msgs::msg::Image::SharedPtr msg){
-                    if(not(topic == "qr")) result_image = *msg;
+                receive_image_[topic] = this->create_subscription<MyAdaptedType>(topic+"_image",10,
+                    [this,topic](const cv::Mat msg){
+                    if(not(topic == "qr")) temporary_image = msg;
                 });// 受け取り時の処理
                 RCLCPP_INFO(this->get_logger(), "Created subscriber for topic: %s", topic.c_str());
             }
-            
         }
     } else {
         RCLCPP_ERROR(this->get_logger(), "Invalid profile: %s", param.c_str());
     } 
 
+    // MISORAから未加工な画像(pressureなどが処理に掛ける画像)　disaster_reportやdebris_removalのため
+    receive_raw_image_ = this->create_subscription<MyAdaptedType>("/raw_image",10,
+        [this](const cv::Mat msg){
+            temporary_image = msg;
+        });
+
     // デジタルツインへ上げるpublisher初期化-----------------------------------------------------------------------------------
     dt_qr_publisher_ = (this->create_publisher<std_msgs::msg::String>("id", 10));
     dt_data_publisher_ = (this->create_publisher<std_msgs::msg::String>("result_data", 10));
-    dt_image_publisher_ = (this->create_publisher<sensor_msgs::msg::Image>("result_image", 10));// Myadaptation
+    dt_image_publisher_ = (this->create_publisher<MyAdaptedType>("result_image", 10));// Myadaptation
 
     // ボタン表示設定-------------------------------------------------------------------------------------------------------
     // ミッションごとに表示するボタンのリストを作成
@@ -118,7 +128,7 @@ void DistributeImage::process(std::string topic_name) {
         color = cv::Scalar(255,0,0);
        
         DrawTool null_image(1000,1000,color);
-        result_image = *(cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", null_image.getImage()).toImageMsg());
+        // result_image = *(cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", null_image.getImage()).toImageMsg());
         // std::unique_ptr<cv::Mat> msg_i = std::make_unique<cv::Mat>(null_image.getImage());
         // RCLCPP_INFO_STREAM(this->get_logger(), "address "<<&(msg_i->data));
         // image_publishers_[button_name]->publish(std::move(msg_i));
@@ -137,6 +147,18 @@ void DistributeImage::process(std::string topic_name) {
         if(topic_name == "V_maneuve") result_data.data = "1";//完了の信号
         
         latest_topic = topic_name;
+    }
+
+    if(topic_name == "send"){
+        latest_topic = "None";
+        latest_qr = false;
+        
+        dt_data_publisher_->publish(result_data);
+        dt_qr_publisher_->publish(id);
+        
+        result_image = std::make_unique<cv::Mat>(temporary_image);
+        RCLCPP_INFO_STREAM(this->get_logger(), "address "<<&(result_image->data));
+        dt_image_publisher_->publish(std::move(result_image));
     }
 }
 
@@ -163,7 +185,9 @@ void DistributeImage::mouse_click_callback(const geometry_msgs::msg::Point::Shar
             // クリックされたボタンを赤色にした状態でGUIを再描画
             publish_gui_->publish(mat);
             
-            process(button_name_);
+            if(button_name_ == "send" and temporary_image.empty()) RCLCPP_INFO_STREAM(this->get_logger(),"Not receive image");
+            else process(button_name_);
+        
             if(std::find(trigger_list.begin(), trigger_list.end(), button_name_) != trigger_list.end()) std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             else std::this_thread::sleep_for(std::chrono::milliseconds(100));
             
