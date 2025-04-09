@@ -1,0 +1,205 @@
+#include "misora2_operation/operator_gui_component.hpp"
+
+namespace component_operator_gui
+{
+DistributeImage::DistributeImage(const rclcpp::NodeOptions &options) 
+    : Node("distribute_image", options)
+{
+    // ミッションごとにモードを変更------------------------------------------------------------------------------------------
+    this->declare_parameter("mode", "P6");
+    std::string param = this->get_parameter("mode").as_string();
+    RCLCPP_INFO(this->get_logger(), "Received my_parameter: %s", param.c_str());
+    
+    // ミッションごとのボタン表示名------------------------------------------------------------------------------------------
+    std::map<std::string, std::vector<std::string>> pub_sub_topics = {
+        {"P1", {"pressure", "qr", "V_maneuve", "send"}},
+        {"P2", {"pressure", "qr", "V_maneuve", "V_state", "send"}},
+        {"P3", {"cracks", "qr", "metal_loss", "send"}},
+        {"P4", {"qr", "disaster", "debris", "V_maneuve", "send"}},
+        {"P6", {"pressure", "qr", "debris", "disaster", "missing", "send"}}
+    };
+
+    // 連続処理のトリガー bool_publisher初期化-----------------------------------------------------------------------------
+    if (pub_sub_topics.find(param) != pub_sub_topics.end()) {
+        for (const auto &topic : pub_sub_topics[param]) {
+            if(std::find(trigger_list.begin(), trigger_list.end(), topic) != trigger_list.end()){
+                bool_triggers_[topic] = this->create_publisher<std_msgs::msg::Bool>(topic+"_trigger", 10);
+                RCLCPP_INFO(this->get_logger(), "Created publisher for topic: %s", topic.c_str());
+            }
+            
+        }
+    } else {
+        RCLCPP_ERROR(this->get_logger(), "Invalid profile: %s", param.c_str());
+    } 
+
+    // MISORA側から送られてくる結果、画像を受け取るsubscriber初期化----------------------------------------------------------
+    if (pub_sub_topics.find(param) != pub_sub_topics.end()) {
+        for (const auto &topic : pub_sub_topics[param]) {
+            if(std::find(trigger_list.begin(), trigger_list.end(), topic) != trigger_list.end()){
+                receive_data_[topic] = this->create_subscription<std_msgs::msg::String>(topic+"_data", 10,
+                    [this, topic](const std_msgs::msg::String::SharedPtr msg){
+                    if(not(topic == "qr")) latest_topic = topic;
+                    else latest_qr = true;
+                    result_data = *msg;
+                });// 受け取り時の処理
+                receive_image_[topic] = this->create_subscription<sensor_msgs::msg::Image>(topic+"_image",10,
+                    [this,topic](const sensor_msgs::msg::Image::SharedPtr msg){
+                    if(not(topic == "qr")) result_image = *msg;
+                });// 受け取り時の処理
+                RCLCPP_INFO(this->get_logger(), "Created subscriber for topic: %s", topic.c_str());
+            }
+            
+        }
+    } else {
+        RCLCPP_ERROR(this->get_logger(), "Invalid profile: %s", param.c_str());
+    } 
+
+    // デジタルツインへ上げるpublisher初期化-----------------------------------------------------------------------------------
+    dt_qr_publisher_ = (this->create_publisher<std_msgs::msg::String>("id", 10));
+    dt_data_publisher_ = (this->create_publisher<std_msgs::msg::String>("result_data", 10));
+    dt_image_publisher_ = (this->create_publisher<sensor_msgs::msg::Image>("result_image", 10));// Myadaptation
+
+    // ボタン表示設定-------------------------------------------------------------------------------------------------------
+    // ミッションごとに表示するボタンのリストを作成
+    buttons_name = pub_sub_topics[param];
+
+    // ボタンの画像を送信するpublisher初期化
+    publish_gui_ = this->create_publisher<MyAdaptedType>("gui_with_buttons",1);
+
+    // ボタンのクリック判定subscriberを作成
+    click_ = this->create_subscription<geometry_msgs::msg::Point>(
+        "gui_with_buttons_mouse_left", 10, std::bind(&DistributeImage::mouse_click_callback, this, std::placeholders::_1));
+
+    // ボタンの画面生成
+    mat = setup();
+
+    // 定期的にボタン画面をpublishするtimer関数
+    view_ = this->create_wall_timer(500ms, std::bind(&DistributeImage::timer_callback, this));
+}
+
+// 画面初期化
+cv::Mat DistributeImage::setup(){
+    DrawTool canvas(width,height,0);//画面描画
+
+    for(size_t i = 0; i < buttons_name.size(); i++){
+        int row = i / btn_per_row;  // 行数
+        int col = i % btn_per_row;  // 列数
+
+        // ボタン位置を更新
+        Button btn(cv::Point(x_offset + col * (btn_width + btn_space_row), y_offset + row * (btn_height + btn_space_col)),cv::Size(btn_width,btn_height));
+        buttons_.push_back(btn); // ボタンをリストに追加
+        canvas.drawButton(btn, buttons_name[i], cv::Scalar(255, 255, 255), -1, cv::LINE_AA, 0.78, cv::Scalar(0,0,0), 2);
+    }
+
+    Button btn(cv::Point(x_offset,buttons_.back().pos.y+btn_height+15),cv::Size(btn_width*2+btn_space_row,btn_height+30));
+    buttons_.push_back(btn);
+    canvas.drawButton(buttons_.back(), "Receive: None", cv::Scalar(0, 0, 0), -1, cv::LINE_AA, 0.78, cv::Scalar(255,255,255), 2);
+
+    return canvas.getImage();
+}
+
+// 定期的にpublish
+void DistributeImage::timer_callback() {
+    publish_gui_->publish(mat);
+}
+
+
+void DistributeImage::process(std::string topic_name) {
+    if(std::find(trigger_list.begin(), trigger_list.end(), topic_name) != trigger_list.end()){ //被災者の顔写真を送るのか、QRのデコードならいらないかも
+        std_msgs::msg::Bool msg_b;
+        msg_b.data = true;
+        RCLCPP_INFO_STREAM(this->get_logger(),"Prepare bool message to " << topic_name+"_trigger" << " " << msg_b.data);
+        bool_triggers_[topic_name]->publish(msg_b);
+    }
+    else if(not(topic_name == "send")){ //MISORA PCから送られてきた画像をそのまま流す
+        
+        cv::Scalar color;
+        // 空画像を生成　本当はmisoraから未加工画像をもらっている
+        color = cv::Scalar(255,0,0);
+       
+        DrawTool null_image(1000,1000,color);
+        result_image = *(cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", null_image.getImage()).toImageMsg());
+        // std::unique_ptr<cv::Mat> msg_i = std::make_unique<cv::Mat>(null_image.getImage());
+        // RCLCPP_INFO_STREAM(this->get_logger(), "address "<<&(msg_i->data));
+        // image_publishers_[button_name]->publish(std::move(msg_i));
+
+        // std_msgs::msg::String msg_s;
+        // msg_s.data = "OK";
+        result_data.data = "OK";
+
+        if(topic_name == "V_state" && bulb_state_count == 0){
+            result_data.data = "OPEN";
+        }
+        else if(topic_name == "V_state" && bulb_state_count == 1){
+            result_data.data = "CLOSE";
+        }
+
+        if(topic_name == "V_maneuve") result_data.data = "1";//完了の信号
+        
+        latest_topic = topic_name;
+    }
+}
+
+void DistributeImage::mouse_click_callback(const geometry_msgs::msg::Point::SharedPtr msg) {
+    cv::Point point(msg->x, msg->y);
+    for(size_t i = 0; i < buttons_.size(); i++){
+        
+        // ボタンの矩形領域を定義
+        cv::Rect button_rect(buttons_[i].pos, buttons_[i].size);
+        // クリック位置がボタンの範囲内にあるかチェック
+        if (button_rect.contains(point)) {
+            cv::Point sp = cv::Point(button_rect.x, button_rect.y);
+            cv::Point ep = cv::Point(button_rect.x + btn_size.width, button_rect.y + btn_size.height);
+            std::string button_name_ = buttons_name[i];
+
+            rewriteImage(sp,ep,button_name_,btn_size.width,btn_size.height,cv::Scalar(0,0,255));
+            if(button_name_ == "V_state" && bulb_state_count == 0){
+                bulb_state_count = 1;
+            }
+            else if(button_name_ == "V_state" && bulb_state_count == 1){
+                bulb_state_count = 0;
+                rewriteImage(sp,ep,button_name_,btn_size.width,btn_size.height,cv::Scalar(255,0,0));
+            }
+            // クリックされたボタンを赤色にした状態でGUIを再描画
+            publish_gui_->publish(mat);
+            
+            process(button_name_);
+            if(std::find(trigger_list.begin(), trigger_list.end(), button_name_) != trigger_list.end()) std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            else std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            
+            rewriteImage(sp,ep,button_name_,btn_size.width,btn_size.height,cv::Scalar(255,255,255));
+            publish_gui_->publish(mat);
+
+            RCLCPP_INFO(this->get_logger(), "Button '%s' clicked",button_name_.c_str());
+        }
+    }
+}
+
+void DistributeImage::rewriteImage(cv::Point sp, cv::Point ep, std::string text, int btn_W, int btn_H, cv::Scalar color) const {
+    cv::rectangle(mat, sp, ep, color, cv::FILLED);
+    int baseline = 0;
+    cv::Size text_size = cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 0.78, 2, &baseline);
+    cv::Point tp(sp.x + (btn_W - text_size.width) / 2, sp.y + (btn_H + text_size.height) / 2);
+    cv::putText(mat, text, tp, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 0.78, cv::Scalar(0, 0, 0), 2);
+    
+    std::string qr_text;
+    if(latest_qr) qr_text ="qr ";
+    else qr_text = "";
+    std::string t = "Receive: " + qr_text + latest_topic; 
+    cv::Rect button_rect(buttons_.back().pos, buttons_.back().size);
+    cv::Point receive_btn_sp = cv::Point(button_rect.x, button_rect.y);
+    cv::Point receive_btn_ep = cv::Point(receive_btn_sp.x+buttons_.back().size.width,receive_btn_sp.y+buttons_.back().size.height);
+
+    cv::rectangle(mat, receive_btn_sp, receive_btn_ep, 0, cv::FILLED);
+    baseline = 0;
+    text_size = cv::getTextSize(t, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 0.78, 2, &baseline);
+    tp = cv::Point(buttons_.back().pos.x + (buttons_.back().size.width - text_size.width) / 2, buttons_.back().pos.y+ (buttons_.back().size.height + text_size.height) / 2);
+    cv::putText(mat, t, tp, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 0.78, cv::Scalar(255, 255, 255), 2);
+    
+}
+
+
+} // namespace component_operator_gui
+
+#include <rclcpp_components/register_node_macro.hpp>
+RCLCPP_COMPONENTS_REGISTER_NODE(component_operator_gui::DistributeImage)
