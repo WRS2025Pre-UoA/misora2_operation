@@ -2,8 +2,8 @@
 
 namespace component_operator_gui
 {
-DistributeImage::DistributeImage(const rclcpp::NodeOptions &options) 
-    : Node("distribute_image", options)
+MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options) 
+    : Node("misora_gui", options)
 {
     // ミッションごとにモードを変更------------------------------------------------------------------------------------------
     this->declare_parameter("mode", "P6");
@@ -49,6 +49,7 @@ DistributeImage::DistributeImage(const rclcpp::NodeOptions &options)
                 });// 受け取り時の処理
                 receive_image_[topic] = this->create_subscription<MyAdaptedType>(topic+"_image",10,
                     [this,topic](const cv::Mat msg){
+                        
                     if(not(topic == "qr")) temporary_image = msg;
                 });// 受け取り時の処理
                 RCLCPP_INFO(this->get_logger(), "Created subscriber for topic: %s", topic.c_str());
@@ -78,17 +79,17 @@ DistributeImage::DistributeImage(const rclcpp::NodeOptions &options)
 
     // ボタンのクリック判定subscriberを作成
     click_ = this->create_subscription<geometry_msgs::msg::Point>(
-        "gui_with_buttons_mouse_left", 10, std::bind(&DistributeImage::mouse_click_callback, this, std::placeholders::_1));
+        "gui_with_buttons_mouse_left", 10, std::bind(&MisoraGUI::mouse_click_callback, this, std::placeholders::_1));
 
     // ボタンの画面生成
     mat = setup();
 
     // 定期的にボタン画面をpublishするtimer関数
-    view_ = this->create_wall_timer(500ms, std::bind(&DistributeImage::timer_callback, this));
+    view_ = this->create_wall_timer(500ms, std::bind(&MisoraGUI::timer_callback, this));
 }
 
 // 画面初期化
-cv::Mat DistributeImage::setup(){
+cv::Mat MisoraGUI::setup(){
     DrawTool canvas(width,height,0);//画面描画
 
     for(size_t i = 0; i < buttons_name.size(); i++){
@@ -109,12 +110,12 @@ cv::Mat DistributeImage::setup(){
 }
 
 // 定期的にpublish
-void DistributeImage::timer_callback() {
-    publish_gui_->publish(mat);
+void MisoraGUI::timer_callback() {
+    if(not(mat.empty()))publish_gui_->publish(mat);
 }
 
 
-void DistributeImage::process(std::string topic_name) {
+void MisoraGUI::process(std::string topic_name) {
     if(std::find(trigger_list.begin(), trigger_list.end(), topic_name) != trigger_list.end()){ //被災者の顔写真を送るのか、QRのデコードならいらないかも
         std_msgs::msg::Bool msg_b;
         msg_b.data = true;
@@ -122,19 +123,7 @@ void DistributeImage::process(std::string topic_name) {
         bool_triggers_[topic_name]->publish(msg_b);
     }
     else if(not(topic_name == "send")){ //MISORA PCから送られてきた画像をそのまま流す
-        
-        cv::Scalar color;
-        // 空画像を生成　本当はmisoraから未加工画像をもらっている
-        color = cv::Scalar(255,0,0);
-       
-        DrawTool null_image(1000,1000,color);
-        // result_image = *(cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", null_image.getImage()).toImageMsg());
-        // std::unique_ptr<cv::Mat> msg_i = std::make_unique<cv::Mat>(null_image.getImage());
-        // RCLCPP_INFO_STREAM(this->get_logger(), "address "<<&(msg_i->data));
-        // image_publishers_[button_name]->publish(std::move(msg_i));
 
-        // std_msgs::msg::String msg_s;
-        // msg_s.data = "OK";
         result_data.data = "OK";
 
         if(topic_name == "V_state" && bulb_state_count == 0){
@@ -149,20 +138,25 @@ void DistributeImage::process(std::string topic_name) {
         latest_topic = topic_name;
     }
 
-    if(topic_name == "send"){
-        latest_topic = "None";
-        latest_qr = false;
-        
+    if(topic_name == "send" and latest_topic != "None" and latest_qr == true and not(temporary_image.empty())){
         dt_data_publisher_->publish(result_data);
         dt_qr_publisher_->publish(id);
-        
         result_image = std::make_unique<cv::Mat>(temporary_image);
         RCLCPP_INFO_STREAM(this->get_logger(), "address "<<&(result_image->data));
         dt_image_publisher_->publish(std::move(result_image));
+
+        latest_topic = "None";
+        latest_qr = false;
+        temporary_image.release();
+        result_data.data = "None";
+        id.data = "None";
+        result_image = std::make_unique<cv::Mat>();
     }
+    else if(topic_name == "send" and (latest_topic == "None" or latest_qr == false or (temporary_image.empty())))RCLCPP_INFO_STREAM(this->get_logger(),"Not Prepared data");
+
 }
 
-void DistributeImage::mouse_click_callback(const geometry_msgs::msg::Point::SharedPtr msg) {
+void MisoraGUI::mouse_click_callback(const geometry_msgs::msg::Point::SharedPtr msg) {
     cv::Point point(msg->x, msg->y);
     for(size_t i = 0; i < buttons_.size(); i++){
         
@@ -185,9 +179,8 @@ void DistributeImage::mouse_click_callback(const geometry_msgs::msg::Point::Shar
             // クリックされたボタンを赤色にした状態でGUIを再描画
             publish_gui_->publish(mat);
             
-            if(button_name_ == "send" and temporary_image.empty()) RCLCPP_INFO_STREAM(this->get_logger(),"Not receive image");
-            else process(button_name_);
-        
+            process(button_name_);
+
             if(std::find(trigger_list.begin(), trigger_list.end(), button_name_) != trigger_list.end()) std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             else std::this_thread::sleep_for(std::chrono::milliseconds(100));
             
@@ -199,7 +192,7 @@ void DistributeImage::mouse_click_callback(const geometry_msgs::msg::Point::Shar
     }
 }
 
-void DistributeImage::rewriteImage(cv::Point sp, cv::Point ep, std::string text, int btn_W, int btn_H, cv::Scalar color) const {
+void MisoraGUI::rewriteImage(cv::Point sp, cv::Point ep, std::string text, int btn_W, int btn_H, cv::Scalar color) const {
     cv::rectangle(mat, sp, ep, color, cv::FILLED);
     int baseline = 0;
     cv::Size text_size = cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 0.78, 2, &baseline);
@@ -226,4 +219,4 @@ void DistributeImage::rewriteImage(cv::Point sp, cv::Point ep, std::string text,
 } // namespace component_operator_gui
 
 #include <rclcpp_components/register_node_macro.hpp>
-RCLCPP_COMPONENTS_REGISTER_NODE(component_operator_gui::DistributeImage)
+RCLCPP_COMPONENTS_REGISTER_NODE(component_operator_gui::MisoraGUI)

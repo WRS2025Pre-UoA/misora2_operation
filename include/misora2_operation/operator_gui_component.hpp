@@ -29,7 +29,7 @@ using namespace std::chrono_literals;
 
 namespace component_operator_gui
 {
-class DistributeImage : public rclcpp::Node
+class MisoraGUI : public rclcpp::Node
 {
 public:
     using MyAdaptedType = rclcpp::TypeAdapter<cv::Mat, sensor_msgs::msg::Image>;
@@ -58,13 +58,12 @@ public:
 
     //　受け取ったメッセージを格納-------------------------------------
     std_msgs::msg::String id, result_data;
-    // sensor_msgs::msg::Image result_image;
     cv::Mat temporary_image;
     std::unique_ptr<cv::Mat> result_image;
 
     std::vector<std::string> trigger_list = {"pressure", "qr", "cracks", "metal_loss"};
-    explicit DistributeImage(const rclcpp::NodeOptions &options);
-    DistributeImage() : DistributeImage(rclcpp::NodeOptions{}) {}
+    explicit MisoraGUI(const rclcpp::NodeOptions &options);
+    MisoraGUI() : MisoraGUI(rclcpp::NodeOptions{}) {}
 
 private:
     cv ::Mat setup();

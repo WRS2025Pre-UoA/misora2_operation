@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.8)
 project(misora2_operation)
 
-# Default to C++20
+# Default to C++17
 if(NOT CMAKE_C_STANDARD)
   set(CMAKE_C_STANDARD 99)
 endif()
@@ -40,7 +40,7 @@ set(dependencies
 
 add_library(operator_gui_library SHARED src/operator_gui_component.cpp src/gui_tool.cpp)
 ament_target_dependencies(operator_gui_library ${dependencies})
-rclcpp_components_register_nodes(operator_gui_library "component_operator_gui::DistributeImage")
+rclcpp_components_register_nodes(operator_gui_library "component_operator_gui::MisoraGUI")
 
 add_executable(operator_gui_node src/operator_gui_component.cpp src/operator_gui_node.cpp src/gui_tool.cpp)
 ament_target_dependencies(operator_gui_node ${dependencies})
