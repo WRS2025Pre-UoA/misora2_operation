@@ -119,7 +119,7 @@ void MisoraGUI::process(std::string topic_name) {
     if(std::find(trigger_list.begin(), trigger_list.end(), topic_name) != trigger_list.end()){ //被災者の顔写真を送るのか、QRのデコードならいらないかも
         std_msgs::msg::Bool msg_b;
         msg_b.data = true;
-        RCLCPP_INFO_STREAM(this->get_logger(),"Prepare bool message to " << topic_name+"_trigger" << " " << msg_b.data);
+        // RCLCPP_INFO_STREAM(this->get_logger(),"Prepare bool message to " << topic_name+"_trigger" << " " << msg_b.data);
         bool_triggers_[topic_name]->publish(msg_b);
     }
     else if(not(topic_name == "send")){ //MISORA PCから送られてきた画像をそのまま流す
@@ -168,14 +168,15 @@ void MisoraGUI::mouse_click_callback(const geometry_msgs::msg::Point::SharedPtr 
             cv::Point ep = cv::Point(button_rect.x + btn_size.width, button_rect.y + btn_size.height);
             std::string button_name_ = buttons_name[i];
 
-            rewriteImage(sp,ep,button_name_,btn_size.width,btn_size.height,cv::Scalar(0,0,255));
             if(button_name_ == "V_state" && bulb_state_count == 0){
                 bulb_state_count = 1;
+                rewriteImage(sp,ep,button_name_,btn_size.width,btn_size.height,cv::Scalar(0,0,255));
             }
             else if(button_name_ == "V_state" && bulb_state_count == 1){
                 bulb_state_count = 0;
                 rewriteImage(sp,ep,button_name_,btn_size.width,btn_size.height,cv::Scalar(255,0,0));
             }
+            else rewriteImage(sp,ep,button_name_,btn_size.width,btn_size.height,cv::Scalar(0,0,255));
             // クリックされたボタンを赤色にした状態でGUIを再描画
             publish_gui_->publish(mat);
             
@@ -187,7 +188,7 @@ void MisoraGUI::mouse_click_callback(const geometry_msgs::msg::Point::SharedPtr 
             rewriteImage(sp,ep,button_name_,btn_size.width,btn_size.height,cv::Scalar(255,255,255));
             publish_gui_->publish(mat);
 
-            RCLCPP_INFO(this->get_logger(), "Button '%s' clicked",button_name_.c_str());
+            // RCLCPP_INFO(this->get_logger(), "Button '%s' clicked",button_name_.c_str());
         }
     }
 }
@@ -202,7 +203,10 @@ void MisoraGUI::rewriteImage(cv::Point sp, cv::Point ep, std::string text, int b
     std::string qr_text;
     if(latest_qr) qr_text ="qr ";
     else qr_text = "";
-    std::string t = "Receive: " + qr_text + latest_topic; 
+    std::string t = "Receive: " + qr_text + latest_topic;
+    if(latest_topic == "V_state" and bulb_state_count == 1)t += "OP";
+    else if(latest_topic == "V_state" and bulb_state_count==0)t+="CL";
+
     cv::Rect button_rect(buttons_.back().pos, buttons_.back().size);
     cv::Point receive_btn_sp = cv::Point(button_rect.x, button_rect.y);
     cv::Point receive_btn_ep = cv::Point(receive_btn_sp.x+buttons_.back().size.width,receive_btn_sp.y+buttons_.back().size.height);
