@@ -36,7 +36,7 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
     if (pub_sub_topics.find(param) != pub_sub_topics.end()) {
         for (const auto &topic : pub_sub_topics[param]) {
             if(std::find(trigger_list.begin(), trigger_list.end(), topic) != trigger_list.end()){
-                receive_data_[topic] = this->create_subscription<std_msgs::msg::String>(topic+"_data", 10,
+                receive_data_[topic] = this->create_subscription<std_msgs::msg::String>(topic+"_result_data", 10,
                     [this, topic](const std_msgs::msg::String::SharedPtr msg){
                     if(topic == "qr") {
                         latest_qr = true;
@@ -47,7 +47,7 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
                         result_data = *msg;
                     }
                 });// 受け取り時の処理
-                receive_image_[topic] = this->create_subscription<MyAdaptedType>(topic+"_image",10,
+                receive_image_[topic] = this->create_subscription<MyAdaptedType>(topic+"_result_image",10,
                     [this,topic](const cv::Mat msg){
                         
                     if(not(topic == "qr")) temporary_image = msg;
@@ -60,7 +60,7 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
     } 
 
     // MISORAから未加工な画像(pressureなどが処理に掛ける画像)　disaster_reportやdebris_removalのため
-    receive_raw_image_ = this->create_subscription<MyAdaptedType>("/raw_image",10,
+    receive_raw_image_ = this->create_subscription<MyAdaptedType>("raw_image",10,
         [this](const cv::Mat msg){
             temporary_image = msg;
         });
