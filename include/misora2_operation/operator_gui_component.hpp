@@ -70,7 +70,8 @@ private:
     void topic_callback(const std_msgs::msg::String::SharedPtr msg);// 検出結果をうけとった時に行う処理関数
     void timer_callback();// 定期的にボタン画像を流す
     void mouse_click_callback(const geometry_msgs::msg::Point::SharedPtr msg);// ボタン画面にクリックした時の座標をもとに行う処理関数
-    void rewriteImage(cv::Point sp, cv::Point ep, std::string text, int btn_W, int btn_H, cv::Scalar color) const;// 指定したボタンの色、表示内容を変更
+    void rewriteButton(cv::Point sp, cv::Point ep, std::string text, int btn_W, int btn_H, cv::Scalar color) const;// 指定したボタンの色、表示内容を変更
+    void rewriteMessage();
     void process(std::string topic_name);// クリックしたボタンに対応した処理を行う関数
 
     rclcpp::Publisher<MyAdaptedType>::SharedPtr publish_gui_;// ボタン画面を流すpublisher

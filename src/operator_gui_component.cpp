@@ -46,6 +46,7 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
                         latest_topic = topic;
                         result_data = *msg;
                     }
+                    rewriteMessage();
                 });// 受け取り時の処理
                 receive_image_[topic] = this->create_subscription<MyAdaptedType>(topic+"_result_image",10,
                     [this,topic](const cv::Mat msg){
@@ -85,7 +86,7 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
     mat = setup();
 
     // 定期的にボタン画面をpublishするtimer関数
-    view_ = this->create_wall_timer(500ms, std::bind(&MisoraGUI::timer_callback, this));
+    view_ = this->create_wall_timer(100ms, std::bind(&MisoraGUI::timer_callback, this));
 }
 
 // 画面初期化
@@ -136,6 +137,7 @@ void MisoraGUI::process(std::string topic_name) {
         if(topic_name == "V_maneuve") result_data.data = "1";//完了の信号
         
         latest_topic = topic_name;
+        rewriteMessage();
     }
 
     if(topic_name == "send" and latest_topic != "None" and latest_qr == true and not(temporary_image.empty())){
@@ -151,6 +153,7 @@ void MisoraGUI::process(std::string topic_name) {
         result_data.data = "None";
         id.data = "None";
         result_image = std::make_unique<cv::Mat>();
+        rewriteMessage();
     }
     else if(topic_name == "send" and (latest_topic == "None" or latest_qr == false or (temporary_image.empty())))RCLCPP_INFO_STREAM(this->get_logger(),"Not Prepared data");
 
@@ -170,13 +173,13 @@ void MisoraGUI::mouse_click_callback(const geometry_msgs::msg::Point::SharedPtr 
 
             if(button_name_ == "V_state" && bulb_state_count == 0){
                 bulb_state_count = 1;
-                rewriteImage(sp,ep,button_name_,btn_size.width,btn_size.height,cv::Scalar(0,0,255));
+                rewriteButton(sp,ep,button_name_,btn_size.width,btn_size.height,cv::Scalar(0,0,255));
             }
             else if(button_name_ == "V_state" && bulb_state_count == 1){
                 bulb_state_count = 0;
-                rewriteImage(sp,ep,button_name_,btn_size.width,btn_size.height,cv::Scalar(255,0,0));
+                rewriteButton(sp,ep,button_name_,btn_size.width,btn_size.height,cv::Scalar(255,0,0));
             }
-            else rewriteImage(sp,ep,button_name_,btn_size.width,btn_size.height,cv::Scalar(0,0,255));
+            else rewriteButton(sp,ep,button_name_,btn_size.width,btn_size.height,cv::Scalar(0,0,255));
             // クリックされたボタンを赤色にした状態でGUIを再描画
             publish_gui_->publish(mat);
             
@@ -185,7 +188,7 @@ void MisoraGUI::mouse_click_callback(const geometry_msgs::msg::Point::SharedPtr 
             if(std::find(trigger_list.begin(), trigger_list.end(), button_name_) != trigger_list.end()) std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             else std::this_thread::sleep_for(std::chrono::milliseconds(100));
             
-            rewriteImage(sp,ep,button_name_,btn_size.width,btn_size.height,cv::Scalar(255,255,255));
+            rewriteButton(sp,ep,button_name_,btn_size.width,btn_size.height,cv::Scalar(255,255,255));
             publish_gui_->publish(mat);
 
             // RCLCPP_INFO(this->get_logger(), "Button '%s' clicked",button_name_.c_str());
@@ -193,13 +196,15 @@ void MisoraGUI::mouse_click_callback(const geometry_msgs::msg::Point::SharedPtr 
     }
 }
 
-void MisoraGUI::rewriteImage(cv::Point sp, cv::Point ep, std::string text, int btn_W, int btn_H, cv::Scalar color) const {
+void MisoraGUI::rewriteButton(cv::Point sp, cv::Point ep, std::string text, int btn_W, int btn_H, cv::Scalar color) const {
     cv::rectangle(mat, sp, ep, color, cv::FILLED);
     int baseline = 0;
     cv::Size text_size = cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 0.78, 2, &baseline);
     cv::Point tp(sp.x + (btn_W - text_size.width) / 2, sp.y + (btn_H + text_size.height) / 2);
     cv::putText(mat, text, tp, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 0.78, cv::Scalar(0, 0, 0), 2);
-    
+}
+
+void MisoraGUI::rewriteMessage(){
     std::string qr_text;
     if(latest_qr) qr_text ="qr ";
     else qr_text = "";
@@ -212,13 +217,11 @@ void MisoraGUI::rewriteImage(cv::Point sp, cv::Point ep, std::string text, int b
     cv::Point receive_btn_ep = cv::Point(receive_btn_sp.x+buttons_.back().size.width,receive_btn_sp.y+buttons_.back().size.height);
 
     cv::rectangle(mat, receive_btn_sp, receive_btn_ep, 0, cv::FILLED);
-    baseline = 0;
-    text_size = cv::getTextSize(t, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 0.78, 2, &baseline);
-    tp = cv::Point(buttons_.back().pos.x + (buttons_.back().size.width - text_size.width) / 2, buttons_.back().pos.y+ (buttons_.back().size.height + text_size.height) / 2);
+    int baseline = 0;
+    cv::Size text_size = cv::getTextSize(t, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 0.78, 2, &baseline);
+    cv::Point tp = cv::Point(buttons_.back().pos.x + (buttons_.back().size.width - text_size.width) / 2, buttons_.back().pos.y+ (buttons_.back().size.height + text_size.height) / 2);
     cv::putText(mat, t, tp, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 0.78, cv::Scalar(255, 255, 255), 2);
-    
 }
-
 
 } // namespace component_operator_gui
 
