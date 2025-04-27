@@ -185,10 +185,18 @@ void MisoraGUI::mouse_click_callback(const geometry_msgs::msg::Point::SharedPtr 
             
             process(button_name_);
 
-            if(std::find(trigger_list.begin(), trigger_list.end(), button_name_) != trigger_list.end()) std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-            else std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            // if(std::find(trigger_list.begin(), trigger_list.end(), button_name_) != trigger_list.end()) std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            // else std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            color_reset_timer_ = this->create_wall_timer(
+                100ms,  // 1秒後
+                [this, sp, ep, button_name_]() {
+                    rewriteButton(sp, ep, button_name_, btn_size.width, btn_size.height, cv::Scalar(255, 255, 255));
+                    publish_gui_->publish(mat);
+                    color_reset_timer_->cancel(); // 一回で止める
+                }
+            );
             
-            rewriteButton(sp,ep,button_name_,btn_size.width,btn_size.height,cv::Scalar(255,255,255));
+            // rewriteButton(sp,ep,button_name_,btn_size.width,btn_size.height,cv::Scalar(255,255,255));
             publish_gui_->publish(mat);
 
             // RCLCPP_INFO(this->get_logger(), "Button '%s' clicked",button_name_.c_str());
