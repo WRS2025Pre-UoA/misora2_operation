@@ -46,7 +46,7 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
                         latest_topic = topic;
                         result_data = *msg;
                     }
-                    rewriteMessage();
+                    rewriteMessage(0);
                 });// 受け取り時の処理
                 receive_image_[topic] = this->create_subscription<MyAdaptedType>(topic+"_result_image",10,
                     [this,topic](const cv::Mat msg){
@@ -103,9 +103,13 @@ cv::Mat MisoraGUI::setup(){
         canvas.drawButton(btn, buttons_name[i], cv::Scalar(255, 255, 255), -1, cv::LINE_AA, 0.78, cv::Scalar(0,0,0), 2);
     }
 
-    Button btn(cv::Point(x_offset,buttons_.back().pos.y+btn_height+15),cv::Size(btn_width*2+btn_space_row,btn_height+30));
-    buttons_.push_back(btn);
-    canvas.drawButton(buttons_.back(), "Receive: None", cv::Scalar(0, 0, 0), -1, cv::LINE_AA, 0.78, cv::Scalar(255,255,255), 2);
+    Button receive_box_(cv::Point(x_offset,buttons_.back().pos.y+btn_height+15),cv::Size(btn_width*2+btn_space_row,btn_height));// 今なにを受け取っているかを表示
+    another_box_.push_back(receive_box_);
+    canvas.drawButton(another_box_[0], "Receive: None", cv::Scalar(0, 0, 0), -1, cv::LINE_AA, 0.78, cv::Scalar(255,255,255), 2);
+
+    Button message_box_(cv::Point(x_offset,another_box_[0].pos.y+btn_height-10),cv::Size(btn_width*2+btn_space_row,btn_height));// Not Preparedなど注意を表示
+    another_box_.push_back(message_box_);
+    canvas.drawButton(another_box_[1], "", cv::Scalar(0, 0, 0), -1, cv::LINE_AA, 0.78, cv::Scalar(255,255,255), 2);
 
     return canvas.getImage();
 }
@@ -137,7 +141,7 @@ void MisoraGUI::process(std::string topic_name) {
         if(topic_name == "V_maneuve") result_data.data = "1";//完了の信号
         
         latest_topic = topic_name;
-        rewriteMessage();
+        rewriteMessage(0);
     }
 
     if(topic_name == "send" and latest_topic != "None" and latest_qr == true and not(temporary_image.empty())){
@@ -153,9 +157,20 @@ void MisoraGUI::process(std::string topic_name) {
         result_data.data = "None";
         id.data = "None";
         result_image = std::make_unique<cv::Mat>();
-        rewriteMessage();
+        rewriteMessage(0);
     }
-    else if(topic_name == "send" and (latest_topic == "None" or latest_qr == false or (temporary_image.empty())))RCLCPP_INFO_STREAM(this->get_logger(),"Not Prepared data");
+    else if(topic_name == "send" and (latest_topic == "None" or latest_qr == false or (temporary_image.empty()))){
+        rewriteMessage(1);//RCLCPP_INFO_STREAM(this->get_logger(),"Not Prepared data");
+        message_reset_timer_ = this->create_wall_timer(
+            1000ms,  // 1秒後
+            [this]() {
+                rewriteMessage(2);
+                publish_gui_->publish(mat);
+                message_reset_timer_->cancel(); // 一回で止める
+            }
+        );
+        
+    }
 
 }
 
@@ -185,8 +200,6 @@ void MisoraGUI::mouse_click_callback(const geometry_msgs::msg::Point::SharedPtr 
             
             process(button_name_);
 
-            // if(std::find(trigger_list.begin(), trigger_list.end(), button_name_) != trigger_list.end()) std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-            // else std::this_thread::sleep_for(std::chrono::milliseconds(100));
             color_reset_timer_ = this->create_wall_timer(
                 100ms,  // 1秒後
                 [this, sp, ep, button_name_]() {
@@ -196,7 +209,6 @@ void MisoraGUI::mouse_click_callback(const geometry_msgs::msg::Point::SharedPtr 
                 }
             );
             
-            // rewriteButton(sp,ep,button_name_,btn_size.width,btn_size.height,cv::Scalar(255,255,255));
             publish_gui_->publish(mat);
 
             // RCLCPP_INFO(this->get_logger(), "Button '%s' clicked",button_name_.c_str());
@@ -212,23 +224,31 @@ void MisoraGUI::rewriteButton(cv::Point sp, cv::Point ep, std::string text, int 
     cv::putText(mat, text, tp, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 0.78, cv::Scalar(0, 0, 0), 2);
 }
 
-void MisoraGUI::rewriteMessage(){
-    std::string qr_text;
-    if(latest_qr) qr_text ="qr ";
-    else qr_text = "";
-    std::string t = "Receive: " + qr_text + latest_topic;
-    if(latest_topic == "V_state" and bulb_state_count == 1)t += "OP";
-    else if(latest_topic == "V_state" and bulb_state_count==0)t+="CL";
-
-    cv::Rect button_rect(buttons_.back().pos, buttons_.back().size);
+void MisoraGUI::rewriteMessage(int i){
+    std::string qr_text,t;
+    if(i == 0){
+        if(latest_qr) qr_text ="qr ";
+        else qr_text = "";
+        t = "Receive: " + qr_text + latest_topic;
+        if(latest_topic == "V_state" and bulb_state_count == 1)t += "OP";
+        else if(latest_topic == "V_state" and bulb_state_count==0)t+="CL";
+    }
+    else if(i == 1)t = "Do Not Send";
+    else if(i == 2){
+        t = " ";
+        i = 1;
+    }
+    cv::Rect button_rect(another_box_[i].pos, another_box_[i].size);
     cv::Point receive_btn_sp = cv::Point(button_rect.x, button_rect.y);
-    cv::Point receive_btn_ep = cv::Point(receive_btn_sp.x+buttons_.back().size.width,receive_btn_sp.y+buttons_.back().size.height);
+    cv::Point receive_btn_ep = cv::Point(receive_btn_sp.x+another_box_[0].size.width,receive_btn_sp.y+another_box_[i].size.height);
 
     cv::rectangle(mat, receive_btn_sp, receive_btn_ep, 0, cv::FILLED);
     int baseline = 0;
     cv::Size text_size = cv::getTextSize(t, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 0.78, 2, &baseline);
-    cv::Point tp = cv::Point(buttons_.back().pos.x + (buttons_.back().size.width - text_size.width) / 2, buttons_.back().pos.y+ (buttons_.back().size.height + text_size.height) / 2);
-    cv::putText(mat, t, tp, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 0.78, cv::Scalar(255, 255, 255), 2);
+    cv::Point tp = cv::Point(another_box_[i].pos.x + (another_box_[i].size.width - text_size.width) / 2, another_box_[i].pos.y+ (another_box_[i].size.height + text_size.height) / 2);
+    cv::Scalar color = cv::Scalar(255, 255, 255);
+    if(i == 1) color = cv::Scalar(0, 0, 255);
+    cv::putText(mat, t, tp, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 0.78, color, 2);
 }
 
 } // namespace component_operator_gui

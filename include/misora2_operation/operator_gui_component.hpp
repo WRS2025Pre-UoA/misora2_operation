@@ -42,12 +42,14 @@ public:
     int x_offset = 5,y_offset = 25;//ボタンの最初の位置
     int btn_per_row = 2;//一行に何個ボタン設置するか
     int btn_space_row = 5, btn_space_col = 30;//ボタン間のスペース
-
+    const int k = 500;
     // 中身
     std::vector<std::string> buttons_name;//表示しているボタンのリスト
     std::vector<Button> buttons_; // ボタン位置、サイズのリスト
     cv::Size btn_size = cv::Size(btn_width,btn_height);
 
+    std::vector<Button> another_box_;
+    
     // 最新の値を格納確認するリスト----------------------------------
     // std::vector<std::map<std::string, bool>> receive_list;
     std::string latest_topic = "None";
@@ -71,13 +73,14 @@ private:
     void timer_callback();// 定期的にボタン画像を流す
     void mouse_click_callback(const geometry_msgs::msg::Point::SharedPtr msg);// ボタン画面にクリックした時の座標をもとに行う処理関数
     void rewriteButton(cv::Point sp, cv::Point ep, std::string text, int btn_W, int btn_H, cv::Scalar color) const;// 指定したボタンの色、表示内容を変更
-    void rewriteMessage();
+    void rewriteMessage(int i);
     void process(std::string topic_name);// クリックしたボタンに対応した処理を行う関数
 
     rclcpp::Publisher<MyAdaptedType>::SharedPtr publish_gui_;// ボタン画面を流すpublisher
     rclcpp::Subscription<geometry_msgs::msg::Point>::SharedPtr click_;// ボタンクリック座標を受け取るsubscriber
     rclcpp::TimerBase::SharedPtr view_;// ボタン画面を定期的に流すタイマー
     rclcpp::TimerBase::SharedPtr color_reset_timer_;// 一定時間待って、ボタンの色を白に戻す
+    rclcpp::TimerBase::SharedPtr message_reset_timer_;// 一定時間待って、ボタンの色を白に戻す
     
     std::map<std::string, rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr> bool_triggers_;// 連続処理信号
     std::map<std::string, rclcpp::Subscription<std_msgs::msg::String>::SharedPtr> receive_data_;// 検出結果をうけとる　
