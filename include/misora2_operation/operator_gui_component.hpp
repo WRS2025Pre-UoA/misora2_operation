@@ -9,7 +9,6 @@
 #include <functional>
 #include <algorithm>
 
-
 #include <rclcpp/clock.hpp>
 #include <rclcpp/time.hpp>
 
@@ -59,16 +58,18 @@ public:
     int bulb_state_count = 0;
 
     //　受け取ったメッセージを格納-------------------------------------
-    std_msgs::msg::String id, result_data;// 確認ノードへ報告を行う時に必要なid 結果を格納
-    cv::Mat temporary_image;// sensor_msgsで送られてくるので一時的にcv::Matへ
-    std::unique_ptr<cv::Mat> result_image;// 確認ノードへ送信する画像
+    std_msgs::msg::String qr_id, result_data;// 確認ノードへ報告を行う時に必要なid 結果を格納
+    cv::Mat temporary_image, receive_image, receive_qr_image;// sensor_msgsで送られてくるので一時的にcv::Matへ misora空の生画像temp 検出ノードからreceive
+    std::unique_ptr<cv::Mat> result_image, qr_image;// 確認ノードへ送信する画像
 
     std::vector<std::string> trigger_list = {"pressure", "qr", "cracks", "metal_loss"};
+    std::vector<std::string> confirm_list = {"pressure", "cracks", "metal_loss"};
+
     explicit MisoraGUI(const rclcpp::NodeOptions &options);
     MisoraGUI() : MisoraGUI(rclcpp::NodeOptions{}) {}
 
 private:
-    cv ::Mat setup();// ボタン画面生成生成
+    cv::Mat setup();// ボタン画面生成生成
     void topic_callback(const std_msgs::msg::String::SharedPtr msg);// 検出結果をうけとった時に行う処理関数
     void timer_callback();// 定期的にボタン画像を流す
     void mouse_click_callback(const geometry_msgs::msg::Point::SharedPtr msg);// ボタン画面にクリックした時の座標をもとに行う処理関数
@@ -88,9 +89,12 @@ private:
 
     rclcpp::Subscription<MyAdaptedType>::SharedPtr receive_raw_image_;// MISORAから来る生画像
 
-    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr dt_qr_publisher_;// 確認ノードへidを送る
+    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr dt_qr_id_publisher_;// 確認ノードへidを送る
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr dt_data_publisher_;// 確認ノードへ検出結果を送る
     rclcpp::Publisher<MyAdaptedType>::SharedPtr dt_image_publisher_;// 確認ノードへ検出画像を送る
+    rclcpp::Publisher<MyAdaptedType>::SharedPtr dt_qr_image_publisher_;// 確認ノードへ検出画像を送る
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr dt_flag_subscriber_;// 送信をしたか否か send or back
+    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr dt_flag_;// 画面起動の信号
     
 };
 

@@ -40,18 +40,31 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
                     [this, topic](const std_msgs::msg::String::SharedPtr msg){
                     if(topic == "qr") {
                         latest_qr = true;
-                        id = *msg;
+                        qr_id = *msg;
+                        dt_qr_id_publisher_->publish(*msg);
                     }
                     else {
                         latest_topic = topic;
                         result_data = *msg;
+                        dt_data_publisher_->publish(*msg);
                     }
                     rewriteMessage(0);
                 });// 受け取り時の処理
                 receive_image_[topic] = this->create_subscription<MyAdaptedType>(topic+"_result_image",10,
                     [this,topic](const cv::Mat msg){
                         
-                    if(not(topic == "qr")) temporary_image = msg;
+                    if(not(topic == "qr")){
+                        receive_image = msg;
+                        result_image = std::make_unique<cv::Mat>(msg);
+                        
+                        dt_image_publisher_->publish(std::move(result_image));
+                    }
+                    else{
+                        receive_qr_image = msg;
+                        qr_image = std::make_unique<cv::Mat>(msg);
+                        
+                        dt_qr_image_publisher_->publish(std::move(qr_image));
+                    }
                 });// 受け取り時の処理
                 RCLCPP_INFO(this->get_logger(), "Created subscriber for topic: %s", topic.c_str());
             }
@@ -67,10 +80,27 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
         });
 
     // デジタルツインへ上げるpublisher初期化-----------------------------------------------------------------------------------
-    dt_qr_publisher_ = (this->create_publisher<std_msgs::msg::String>("id", 10));
+    dt_qr_id_publisher_ = (this->create_publisher<std_msgs::msg::String>("qr_id", 10));// 送信上限1でもいい気がする
     dt_data_publisher_ = (this->create_publisher<std_msgs::msg::String>("result_data", 10));
     dt_image_publisher_ = (this->create_publisher<MyAdaptedType>("result_image", 10));// Myadaptation
+    dt_qr_image_publisher_ = (this->create_publisher<MyAdaptedType>("result_qr_image", 10));// Myadaptation
 
+    // デジタルツインからの信号----------------------------------------------------------------------------------------------
+    dt_flag_subscriber_ = this->create_subscription<std_msgs::msg::Bool>("send_flag",1,
+        [this](const std_msgs::msg::Bool::SharedPtr msg){
+            if(msg->data){
+                latest_topic = "None";
+                latest_qr = false;
+                receive_qr_image.release();// 勝手に更新されるのかな
+                receive_image.release();// 勝手に更新されるのかな
+                result_data.data = "None";
+                qr_id.data = "None";
+                result_image = std::make_unique<cv::Mat>();
+                rewriteMessage(0);
+            }
+        });
+    // 確認画面起動---------------------------------------------------------------------------------------------------------
+    dt_flag_ = this->create_publisher<std_msgs::msg::Bool>("startUp",2);
     // ボタン表示設定-------------------------------------------------------------------------------------------------------
     // ミッションごとに表示するボタンのリストを作成
     buttons_name = pub_sub_topics[param];
@@ -139,36 +169,17 @@ void MisoraGUI::process(std::string topic_name) {
         }
 
         if(topic_name == "V_maneuve") result_data.data = "1";//完了の信号
-        
+        result_image = std::make_unique<cv::Mat>(temporary_image);
+        dt_data_publisher_->publish(result_data);
+        dt_image_publisher_->publish(std::move(result_image));
         latest_topic = topic_name;
         rewriteMessage(0);
     }
 
-    if(topic_name == "send" and latest_topic != "None" and latest_qr == true and not(temporary_image.empty())){
-        dt_data_publisher_->publish(result_data);
-        dt_qr_publisher_->publish(id);
-        result_image = std::make_unique<cv::Mat>(temporary_image);
-        RCLCPP_INFO_STREAM(this->get_logger(), "address "<<&(result_image->data));
-        dt_image_publisher_->publish(std::move(result_image));
-
-        latest_topic = "None";
-        latest_qr = false;
-        temporary_image.release();
-        result_data.data = "None";
-        id.data = "None";
-        result_image = std::make_unique<cv::Mat>();
-        rewriteMessage(0);
-    }
-    else if(topic_name == "send" and (latest_topic == "None" or latest_qr == false or (temporary_image.empty()))){
-        rewriteMessage(1);//RCLCPP_INFO_STREAM(this->get_logger(),"Not Prepared data");
-        message_reset_timer_ = this->create_wall_timer(
-            1000ms,  // 1秒後
-            [this]() {
-                rewriteMessage(2);
-                publish_gui_->publish(mat);
-                message_reset_timer_->cancel(); // 一回で止める
-            }
-        );
+    if(topic_name == "send"){ 
+        std_msgs::msg::Bool msg;
+        msg.data = true;
+        dt_flag_->publish(msg);
         
     }
 
