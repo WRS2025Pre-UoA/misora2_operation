@@ -33,6 +33,19 @@ void DrawTool::drawButton(const Button& button, const std::string& text, cv::Sca
     drawAtText(text, textPos, textSize, textColor, textThickness);
 }
 
+void DrawTool::drawButton_new(const Button& button, const std::string& text, cv::Scalar color, int thickness, int lineType,
+                            double textSize, cv::Scalar textColor, int textThickness) {
+    cv::rectangle(image, button.pos,  cv::Point(button.pos.x + button.size.width, button.pos.y + button.size.height),  color, thickness, lineType);
+    drawText_new(text, button.pos, button.size, textSize, textColor, textThickness);
+}
+
+void DrawTool::drawText_new(const std::string& text, cv::Point pos, cv::Size size, double textSize, cv::Scalar color, int thickness){
+    int baseline = 0;
+    cv::Size text_size = cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, textSize, thickness, &baseline);
+    cv::Point tp(pos.x + (size.width - text_size.width) / 2, pos.y + (size.height + text_size.height) / 2);
+    cv::putText(image, text, tp, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, textSize, color, thickness);
+}
+
 const cv::Mat& DrawTool::getImage() const {
     return image;
 }

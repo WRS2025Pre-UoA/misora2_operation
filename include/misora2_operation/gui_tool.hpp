@@ -27,6 +27,10 @@ class DrawTool{
     void drawButton(const Button& button, const std::string& text, cv::Scalar color = cv::Scalar(255,255,255), 
                     int thickness = -1, int lineType = cv::LINE_8, double textSize = 2,
                     cv::Scalar textColor =cv::Scalar(0,0,0), int textThickness = 1);
+    void drawText_new(const std::string& text, cv::Point pos, cv::Size size, double textSize = 1, cv::Scalar color = cv::Scalar(255,255,255), int thickness = 1);
+    void drawButton_new(const Button& button, const std::string& text, cv::Scalar color = cv::Scalar(255,255,255), 
+                    int thickness = -1, int lineType = cv::LINE_AA, double textSize = 1,
+                    cv::Scalar textColor = cv::Scalar(0,0,0), int textThickness = 1);
 
     const cv::Mat& getImage()const;
 };

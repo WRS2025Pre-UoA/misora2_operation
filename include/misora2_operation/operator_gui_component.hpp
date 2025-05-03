@@ -43,7 +43,7 @@ public:
     int btn_space_row = 5, btn_space_col = 30;//ボタン間のスペース
     const int k = 500;
     // 中身
-    std::vector<std::string> buttons_name;//表示しているボタンのリスト
+    std::vector<std::string> buttons_name_;//表示しているボタンのリスト
     std::vector<Button> buttons_; // ボタン位置、サイズのリスト
     cv::Size btn_size = cv::Size(btn_width,btn_height);
 
@@ -62,6 +62,8 @@ public:
     cv::Mat temporary_image, receive_image, receive_qr_image;// sensor_msgsで送られてくるので一時的にcv::Matへ misora空の生画像temp 検出ノードからreceive
     std::unique_ptr<cv::Mat> result_image, qr_image;// 確認ノードへ送信する画像
 
+    // 画面が起動しているかflag
+    bool send_confirm_flag = false;
     std::vector<std::string> trigger_list = {"pressure", "qr", "cracks", "metal_loss"};
     std::vector<std::string> confirm_list = {"pressure", "cracks", "metal_loss"};
 
@@ -73,8 +75,8 @@ private:
     void topic_callback(const std_msgs::msg::String::SharedPtr msg);// 検出結果をうけとった時に行う処理関数
     void timer_callback();// 定期的にボタン画像を流す
     void mouse_click_callback(const geometry_msgs::msg::Point::SharedPtr msg);// ボタン画面にクリックした時の座標をもとに行う処理関数
-    void rewriteButton(cv::Point sp, cv::Point ep, std::string text, int btn_W, int btn_H, cv::Scalar color) const;// 指定したボタンの色、表示内容を変更
-    void rewriteMessage(int i);
+    void rewriteButton(Button btn, std::string text, cv::Scalar color) const;// 指定したボタンの色、表示内容を変更
+    void rewriteMessage();
     void process(std::string topic_name);// クリックしたボタンに対応した処理を行う関数
 
     rclcpp::Publisher<MyAdaptedType>::SharedPtr publish_gui_;// ボタン画面を流すpublisher
@@ -82,6 +84,7 @@ private:
     rclcpp::TimerBase::SharedPtr view_;// ボタン画面を定期的に流すタイマー
     rclcpp::TimerBase::SharedPtr color_reset_timer_;// 一定時間待って、ボタンの色を白に戻す
     rclcpp::TimerBase::SharedPtr message_reset_timer_;// 一定時間待って、ボタンの色を白に戻す
+    rclcpp::TimerBase::SharedPtr reopen_window_;// 確認画面が表示されてるときにsendボタンが押されたとき
     
     std::map<std::string, rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr> bool_triggers_;// 連続処理信号
     std::map<std::string, rclcpp::Subscription<std_msgs::msg::String>::SharedPtr> receive_data_;// 検出結果をうけとる　
