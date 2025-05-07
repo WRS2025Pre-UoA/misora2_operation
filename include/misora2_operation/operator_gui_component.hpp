@@ -60,7 +60,7 @@ public:
     //　受け取ったメッセージを格納-------------------------------------
     std_msgs::msg::String qr_id, result_data;// 確認ノードへ報告を行う時に必要なid 結果を格納
     cv::Mat temporary_image, receive_image, receive_qr_image;// sensor_msgsで送られてくるので一時的にcv::Matへ misora空の生画像temp 検出ノードからreceive
-    std::unique_ptr<cv::Mat> result_image, qr_image;// 確認ノードへ送信する画像
+    // std::unique_ptr<cv::Mat> result_image, qr_image;// 確認ノードへ送信する画像
 
     // 画面が起動しているかflag
     bool send_confirm_flag = false;
