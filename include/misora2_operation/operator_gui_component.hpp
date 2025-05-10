@@ -16,6 +16,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/string.hpp>
+#include <std_msgs/msg/float64.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <geometry_msgs/msg/point.hpp>
 #include <cv_bridge/cv_bridge.h>
@@ -50,7 +51,6 @@ public:
     std::vector<Button> another_box_;
     
     // 最新の値を格納確認するリスト----------------------------------
-    // std::vector<std::map<std::string, bool>> receive_list;
     std::string latest_topic = "None";
     bool latest_qr = false;
 
@@ -60,7 +60,6 @@ public:
     //　受け取ったメッセージを格納-------------------------------------
     std_msgs::msg::String qr_id, result_data;// 確認ノードへ報告を行う時に必要なid 結果を格納
     cv::Mat temporary_image, receive_image, receive_qr_image;// sensor_msgsで送られてくるので一時的にcv::Matへ misora空の生画像temp 検出ノードからreceive
-    // std::unique_ptr<cv::Mat> result_image, qr_image;// 確認ノードへ送信する画像
 
     // 画面が起動しているかflag
     bool send_confirm_flag = false;
@@ -88,6 +87,7 @@ private:
     
     std::map<std::string, rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr> bool_triggers_;// 連続処理信号
     std::map<std::string, rclcpp::Subscription<std_msgs::msg::String>::SharedPtr> receive_data_;// 検出結果をうけとる　
+    
     std::map<std::string, rclcpp::Subscription<MyAdaptedType>::SharedPtr> receive_image_;// 検出画像をうけとる
 
     rclcpp::Subscription<MyAdaptedType>::SharedPtr receive_raw_image_;// MISORAから来る生画像

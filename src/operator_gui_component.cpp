@@ -26,7 +26,6 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
                 bool_triggers_[topic] = this->create_publisher<std_msgs::msg::Bool>(topic+"_trigger", 10);
                 RCLCPP_INFO(this->get_logger(), "Created publisher for topic: %s", topic.c_str());
             }
-            
         }
     } else {
         RCLCPP_ERROR(this->get_logger(), "Invalid profile: %s", param.c_str());
@@ -45,7 +44,6 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
                     }
                     else {
                         latest_topic = topic;
-                        result_data = *msg;
                         dt_data_publisher_->publish(*msg);
                     }
                     // rewriteMessage();
@@ -55,15 +53,15 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
                         
                     if(not(topic == "qr")){
                         receive_image = msg;
-                        std::unique_ptr<cv::Mat> result_image = std::make_unique<cv::Mat>(msg);
-                        RCLCPP_INFO_STREAM(this->get_logger(),"Send address: " << &(result_image->data) << ", Size: " << msg.size() << ", channels: " << msg.channels());
-                        dt_image_publisher_->publish(std::move(result_image));
+                        cv::Mat result_image = msg;
+                        RCLCPP_INFO_STREAM(this->get_logger(),"Send address: " << &(result_image) << ", Size: " << msg.size() << ", channels: " << msg.channels());
+                        dt_image_publisher_->publish(result_image);
                     }
                     else if(topic == "qr"){
                         receive_qr_image = msg;
-                        std::unique_ptr<cv::Mat> qr_image = std::make_unique<cv::Mat>(msg);
-                        RCLCPP_INFO_STREAM(this->get_logger(),"Send address: " << &(qr_image->data)<< ", Size: " << msg.size() << ", channels: " << msg.channels());
-                        dt_qr_image_publisher_->publish(std::move(qr_image));
+                        cv::Mat qr_image = msg;
+                        RCLCPP_INFO_STREAM(this->get_logger(),"Send address: " << &(qr_image)<< ", Size: " << msg.size() << ", channels: " << msg.channels());
+                        dt_qr_image_publisher_->publish(qr_image);
                     }
                 });// 受け取り時の処理
                 RCLCPP_INFO(this->get_logger(), "Created subscriber for topic: %s", topic.c_str());
@@ -93,11 +91,6 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
                 latest_qr = false;
                 receive_qr_image.release();// 勝手に更新されるのかな
                 receive_image.release();// 勝手に更新されるのかな
-                result_data.data = "None";
-                qr_id.data = "None";
-                // std::unique_ptr<cv::Mat> result_image = std::make_unique<cv::Mat>();
-                // qr_image = std::make_unique<cv::Mat>();
-                // rewriteMessage();
             }
             send_confirm_flag = false;// backかsendを押して画面を閉じたとする
             // RCLCPP_INFO_STREAM(this->get_logger(),"CLOSE");
@@ -173,9 +166,10 @@ void MisoraGUI::process(std::string topic_name) {
         }
 
         if(topic_name == "V_maneuve") result_data.data = "1";//完了の信号
-        std::unique_ptr<cv::Mat> result_image = std::make_unique<cv::Mat>(temporary_image);
+        cv::Mat result_image = temporary_image;
+        RCLCPP_INFO_STREAM(this->get_logger(), "Send image size: " << result_image.size());
         dt_data_publisher_->publish(result_data);
-        dt_image_publisher_->publish(std::move(result_image));
+        dt_image_publisher_->publish(result_image);
         latest_topic = topic_name;
         // rewriteMessage();
     }
