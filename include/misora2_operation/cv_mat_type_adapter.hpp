@@ -34,7 +34,7 @@ struct rclcpp::TypeAdapter<cv::Mat, sensor_msgs::msg::Image>
   {
     
     cv_bridge::CvImagePtr cv_ptr;
-    cv_ptr = cv_bridge::toCvCopy(source, "bgr8");  // "bgr8" は適切なエンコーディングに変更
+    cv_ptr = cv_bridge::toCvCopy(source, source.encoding);  // "bgr8" は適切なエンコーディングに変更
     
     destination = cv_ptr->image;
   }
