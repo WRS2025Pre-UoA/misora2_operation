@@ -46,7 +46,6 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
                         latest_topic = topic;
                         dt_data_publisher_->publish(*msg);
                     }
-                    // rewriteMessage();
                 });// 受け取り時の処理
                 receive_image_[topic] = this->create_subscription<MyAdaptedType>(topic+"_result_image",10,
                     [this,topic](const cv::Mat msg){
