@@ -157,10 +157,10 @@ void MisoraGUI::process(std::string topic_name) {
 
         result_data.data = "OK";
 
-        if(topic_name == "V_state" && bulb_state_count == 0){
+        if(topic_name == "V_state" && bulb_state_count == 1){
             result_data.data = "OPEN";
         }
-        else if(topic_name == "V_state" && bulb_state_count == 1){
+        else if(topic_name == "V_state" && bulb_state_count == 0){
             result_data.data = "CLOSE";
         }
 
