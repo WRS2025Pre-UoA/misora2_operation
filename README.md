@@ -17,7 +17,7 @@
 ### 画面下部のデータ表示
  - 現在保持している報告データの状態が簡易的に表示される
     - qr : True / False  qrデータを保持している(T)、していない(F)
-    - other : ~~ qrデータ以外の報告結果が何かを表示
+    - other : qrデータ以外の報告結果が何かを表示
         - 表示内容
         - | 表示名 | 内容 |
             | :----: | :----: |
@@ -43,4 +43,20 @@ cd [ワークスペース]
 colcon build
 source install/setup.bash
 ros2 run misora2_operation operation_gui_node --ros-args -p mode:=<ミッション番号P1,P2~>
+~~~
+
+## 減肉センサの画面を切り抜く
+減肉センサの数値をOCRで読み取る際、画像内に不要な部分が映り込むことで誤認識が発生することがあります。  
+そこで、MISORAから提供された減肉センサ画像をもとに、**あらかじめ切り抜く領域（ROI）を指定**しておくことで、OCRの精度向上を図ります。
+### プログラム：click_metal_image.py
+- 第1引数：対象画像のファイルパス
+- マウス左クリックで以下の順に3点をクリック
+  1. 任意の位置（確認用）
+  2. 切り抜き領域の左上
+  3. 切り抜き領域の右下
+- 座標は `click_points.txt` に保存されます
+### 実行コード
+~~~bash!
+cd <ワークスペース>
+python3 src/misora2_operation/click_metal_image.py <画像ファイルのパス>
 ~~~
