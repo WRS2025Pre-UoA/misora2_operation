@@ -16,6 +16,7 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
         {"P2", {"pressure", "qr", "V_maneuve", "V_state", "send"}},
         {"P3", {"cracks", "qr", "metal_loss", "send"}},
         {"P4", {"qr", "disaster", "debris", "V_maneuve", "send"}},
+        {"P5", {"qr", "send"}},
         {"P6", {"pressure", "qr", "debris", "disaster", "missing", "send"}}
     };
 
@@ -73,7 +74,11 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
     // MISORAから未加工な画像(pressureなどが処理に掛ける画像)　disaster_reportやdebris_removalのため
     receive_raw_image_ = this->create_subscription<MyAdaptedType>("raw_image",10,
         [this](const cv::Mat msg){
-            temporary_image = msg;
+            if(!msg.empty()){
+                temporary_image = msg;
+                misora_image_flag = true;
+            }
+            else misora_image_flag = false;
         });
 
     // デジタルツインへ上げるpublisher初期化-----------------------------------------------------------------------------------
@@ -217,35 +222,65 @@ void MisoraGUI::mouse_click_callback(const geometry_msgs::msg::Point::SharedPtr 
         // クリック位置がボタンの範囲内にあるかチェック
         if (button_rect.contains(point)) {
             std::string button_name = buttons_name_[i];
-
-            if(button_name == "V_state" && bulb_state_count == 0){
-                bulb_state_count = 1;
-                rewriteButton(buttons_[i],button_name,cv::Scalar(0,0,255));
+            if(button_name == "send") {
+                process(button_name);
+                RCLCPP_INFO_STREAM(this->get_logger(),"Push Send button");
             }
-            else if(button_name == "V_state" && bulb_state_count == 1){
-                bulb_state_count = 0;
-                rewriteButton(buttons_[i],button_name,cv::Scalar(255,0,0));
-            }
-            else rewriteButton(buttons_[i],button_name,cv::Scalar(0,0,255));
-            // クリックされたボタンを赤色にした状態でGUIを再描画
-            publish_gui_->publish(mat);
-            
-            process(button_name);
-
-            color_reset_timer_ = this->create_wall_timer(
-                100ms,  // 1秒後
-                [this, i, button_name]() {
-                    rewriteButton(buttons_[i], button_name,  cv::Scalar(255, 255, 255));
-                    publish_gui_->publish(mat);
-                    color_reset_timer_->cancel(); // 一回で止める
+            else if(misora_image_flag){ // send以外のボタンを押したときMISORAからの画像が送られていなければ、処理を実行しない判定式
+                if(button_name == "V_state" && bulb_state_count == 0){
+                    bulb_state_count = 1;
+                    rewriteButton(buttons_[i],button_name,cv::Scalar(0,0,255));
                 }
-            );
+                else if(button_name == "V_state" && bulb_state_count == 1){
+                    bulb_state_count = 0;
+                    rewriteButton(buttons_[i],button_name,cv::Scalar(255,0,0));
+                }
+                else rewriteButton(buttons_[i],button_name,cv::Scalar(0,0,255));
+                // クリックされたボタンを赤色にした状態でGUIを再描画
+                publish_gui_->publish(mat);
+                
+                process(button_name);
             
-            publish_gui_->publish(mat);
-
+                color_reset_timer_ = this->create_wall_timer(
+                    100ms,  // 1秒後
+                    [this, i, button_name]() {
+                        rewriteButton(buttons_[i], button_name,  cv::Scalar(255, 255, 255));
+                        publish_gui_->publish(mat);
+                        color_reset_timer_->cancel(); // 一回で止める
+                    }
+                );
+                
+                publish_gui_->publish(mat);
+                RCLCPP_INFO_STREAM(this->get_logger(),"Push button when received image");
+            }
+            else {
+                cv::Mat no_image = cv::Mat::zeros(height,width,CV_8UC3);
+                std::vector<std::string> text1 = {"No Image","From MISORA2","No executable"};
+                // その後文字を入力
+                for(int i=1;i<=3;i++){
+                    int baseline = 0;
+                    cv::Size text_size = cv::getTextSize(text1[i-1], cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 1, 2, &baseline);
+                    // std::cout << text_size << std::endl;
+                    cv::Point tp = cv::Point(int(width-text_size.width)/2,int(i*height/3) - int(i*height/6-text_size.height)/2);
+                    cv::Scalar color = cv::Scalar(0, 0, 255);
+                    cv::putText(no_image, text1[i-1], tp, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 1, color, 4);
+                }
+                publish_gui_->publish(no_image);
+                error_message_timer_ = this->create_wall_timer(
+                            500ms,  // 1秒後
+                            [this]() {
+                                publish_gui_->publish(mat);
+                                error_message_timer_->cancel(); // 一回で止める
+                            }
+                        );
+                // publish_gui_->publish(mat);    
+                RCLCPP_INFO_STREAM(this->get_logger(),"Push button when unreceived image"); 
+            }
             // RCLCPP_INFO(this->get_logger(), "Button '%s' clicked",button_name.c_str());
         }
     }
+    
+    
 }
 
 // ボタンの色変更--------------------------------------------------------------------------------------------------------------------------------------------------------
