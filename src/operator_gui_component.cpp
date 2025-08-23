@@ -169,7 +169,7 @@ void MisoraGUI::process(std::string topic_name) {
             result_data.data = "CLOSE";
         }
 
-        if(topic_name == "V_maneuve") result_data.data = "1";//完了の信号
+        if(topic_name == "V_maneuve") result_data.data = "100";//完了の信号
         cv::Mat result_image = temporary_image;
         RCLCPP_INFO_STREAM(this->get_logger(), "Send image size: " << result_image.size());
         dt_data_publisher_->publish(result_data);
