@@ -10,14 +10,23 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
     std::string param = this->get_parameter("mode").as_string();
     RCLCPP_INFO(this->get_logger(), "Received my_parameter: %s", param.c_str());
     
+    // tf2の初期化 target_frame,source_frameのパラメータ取得----------------------------------------------------------------
+    // target_frame_id misora2の軌跡
+    this->declare_parameter("target_frame_id", "base_link");
+    target_frame_id = this->get_parameter("target_frame_id").as_string();
+    // source_frame_id 地図
+    this->declare_parameter("source_frame_id", "map");
+    source_frame_id = this->get_parameter("source_frame_id").as_string();
+    RCLCPP_INFO_STREAM(this->get_logger(), "Received target_frame_id : " << target_frame_id << ", source_frame_id : " << source_frame_id );
+
     // ミッションごとのボタン表示名------------------------------------------------------------------------------------------
     std::map<std::string, std::vector<std::string>> pub_sub_topics = {
-        {"P1", {"pressure", "qr", "V_maneuve", "send"}},
-        {"P2", {"pressure", "qr", "V_maneuve", "V_state", "send"}},
-        {"P3", {"cracks", "qr", "metal_loss", "send"}},
-        {"P4", {"qr", "disaster", "debris", "V_maneuve", "send"}},
-        {"P5", {"qr", "send"}},
-        {"P6", {"pressure", "qr", "debris", "disaster", "missing", "send"}}
+        {"P1", {pressure_btn_name, qr_btn_name, V_maneuve_btn_name}},
+        {"P2", {pressure_btn_name, qr_btn_name, V_maneuve_btn_name, V_stateOP_btn_name, V_stateCL_btn_name}},
+        {"P3", {cracks_btn_name, qr_btn_name, metal_loss_btn_name, metal_loss_send_btn_name}},
+        {"P4", {qr_btn_name, debrisN_btn_name, debrisD_btn_name, debrisC_btn_name, V_maneuve_btn_name}},
+        {"P5", {qr_btn_name}},
+        {"P6", {pressure_btn_name, qr_btn_name, debrisN_btn_name, debrisD_btn_name, debrisC_btn_name,missing_btn_name}}
     };
 
     // 連続処理のトリガー bool_publisher初期化-----------------------------------------------------------------------------
@@ -25,7 +34,7 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
         for (const auto &topic : pub_sub_topics[param]) {
             if(std::find(trigger_list.begin(), trigger_list.end(), topic) != trigger_list.end()){
                 bool_triggers_[topic] = this->create_publisher<std_msgs::msg::Bool>(topic+"_trigger", 10);
-                RCLCPP_INFO(this->get_logger(), "Created publisher for topic: %s", topic.c_str());
+                RCLCPP_INFO(this->get_logger(), "Created publisher for topic: %s", topic.c_str());// pressure,qr,cracks
             }
         }
     } else {
@@ -36,32 +45,19 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
     if (pub_sub_topics.find(param) != pub_sub_topics.end()) {
         for (const auto &topic : pub_sub_topics[param]) {
             if(std::find(trigger_list.begin(), trigger_list.end(), topic) != trigger_list.end()){
-                receive_data_[topic] = this->create_subscription<std_msgs::msg::String>(topic+"_result_data", 10,
-                    [this, topic](const std_msgs::msg::String::SharedPtr msg){
+                receive_results_[topic] = this->create_subscription<misora2_custom_msg::msg::Custom>(topic+"_results", 10,
+                    [this, topic](const misora2_custom_msg::msg::Custom::SharedPtr msg){
                     if(topic == "qr") {
                         latest_qr = true;
-                        qr_id = *msg;
-                        dt_qr_id_publisher_->publish(*msg);
+                        qr_data.id = msg->result;
+                        qr_data.image = cv_bridge::toCvCopy(msg->image, msg->image.encoding)->image;
+                        qr_data.stamp = this->now();
                     }
                     else {
                         latest_topic = topic;
-                        dt_data_publisher_->publish(*msg);
-                    }
-                });// 受け取り時の処理
-                receive_image_[topic] = this->create_subscription<MyAdaptedType>(topic+"_result_image",10,
-                    [this,topic](const cv::Mat msg){
-                        
-                    if(not(topic == "qr")){
-                        receive_image = msg;
-                        cv::Mat result_image = msg;
-                        RCLCPP_INFO_STREAM(this->get_logger(),"Send address: " << &(result_image) << ", Size: " << msg.size() << ", channels: " << msg.channels());
-                        dt_image_publisher_->publish(result_image);
-                    }
-                    else if(topic == "qr"){
-                        receive_qr_image = msg;
-                        cv::Mat qr_image = msg;
-                        RCLCPP_INFO_STREAM(this->get_logger(),"Send address: " << &(qr_image)<< ", Size: " << msg.size() << ", channels: " << msg.channels());
-                        dt_qr_image_publisher_->publish(qr_image);
+                        result_data.data = msg->result;
+                        result_data.image = cv_bridge::toCvCopy(msg->image, msg->image.encoding)->image;
+                        result_data.stamp = this->now();
                     }
                 });// 受け取り時の処理
                 RCLCPP_INFO(this->get_logger(), "Created subscriber for topic: %s", topic.c_str());
@@ -80,27 +76,34 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
             }
             else misora_image_flag = false;
         });
-
-    // デジタルツインへ上げるpublisher初期化-----------------------------------------------------------------------------------
-    dt_qr_id_publisher_ = (this->create_publisher<std_msgs::msg::String>("qr_id", 1));// 送信上限1でもいい気がする
-    dt_data_publisher_ = (this->create_publisher<std_msgs::msg::String>("result_data", 1));
-    dt_image_publisher_ = (this->create_publisher<MyAdaptedType>("result_image", 10));// Myadaptation
-    dt_qr_image_publisher_ = (this->create_publisher<MyAdaptedType>("result_qr_image", 10));// Myadaptation
-
-    // デジタルツインからの信号----------------------------------------------------------------------------------------------
-    dt_flag_subscriber_ = this->create_subscription<std_msgs::msg::Bool>("send_flag",1,
-        [this](const std_msgs::msg::Bool::SharedPtr msg){
-            if(msg->data){
-                latest_topic = "None";
-                latest_qr = false;
-                receive_qr_image.release();// 勝手に更新されるのかな
-                receive_image.release();// 勝手に更新されるのかな
+    // 減肉用画像を常に受け取り更新する
+    received_image_metal_ = this->create_subscription<sensor_msgs::msg::Image>("raw_image_metal",10,
+        [this](const sensor_msgs::msg::Image::SharedPtr msg){
+            if(!msg->data.empty()){
+                ML_temp_image = cv_bridge::toCvCopy(msg, msg->encoding)->image;
             }
-            send_confirm_flag = false;// backかsendを押して画面を閉じたとする
-            // RCLCPP_INFO_STREAM(this->get_logger(),"CLOSE");
         });
-    // 確認画面起動---------------------------------------------------------------------------------------------------------
-    dt_flag_ = this->create_publisher<std_msgs::msg::Bool>("startUp",1);
+    // tf2関連 ----------------------------------------------------------------------------------------
+    pos_data.x = 0.0f;
+    pos_data.y = 0.0f;
+    pos_data.z = 0.0f;
+    pos_data.roll = 0.0f;
+    pos_data.pitch = 0.0f;
+    pos_data.yaw = 0.0f;
+    // バッファの生成
+    tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
+
+    // listenerの生成
+    tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+    pos_timer_ = this->create_wall_timer(10ms, std::bind(&MisoraGUI::on_timer, this));
+    pos_pub_ = this->create_wall_timer(1s, std::bind(&MisoraGUI::pos_pub_callback, this)); 
+    dt_pos_publisher_ = (this->create_publisher<misora2_custom_msg::msg::Pos>("pos_data", 1));// publisherデジタルツインへ位置情報を送信
+    // デジタルツインへ上げるpublisher初期化-----------------------------------------------------------------------------------
+    dt_data_publisher_ = (this->create_publisher<misora2_custom_msg::msg::Digital>("digital_data", 1));// 送信上限1でもいい気がする
+    data_pub_ = this->create_wall_timer(1s, std::bind(&MisoraGUI::data_pub_callback, this));
+    
+   
+    
     // ボタン表示設定-------------------------------------------------------------------------------------------------------
     // ミッションごとに表示するボタンのリストを作成
     buttons_name_ = pub_sub_topics[param];
@@ -119,31 +122,6 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
     view_ = this->create_wall_timer(100ms, std::bind(&MisoraGUI::timer_callback, this));
 }
 
-// 画面初期化--------------------------------------------------------------------------------------------------------------------------------------------------------
-cv::Mat MisoraGUI::setup(){
-    DrawTool canvas(width,height,0);//画面描画
-
-    for(size_t i = 0; i < buttons_name_.size(); i++){
-        int row = i / btn_per_row;  // 行数
-        int col = i % btn_per_row;  // 列数
-
-        // ボタン位置を更新
-        Button btn(cv::Point(x_offset + col * (btn_width + btn_space_row), y_offset + row * (btn_height + btn_space_col)),cv::Size(btn_width,btn_height));
-        buttons_.push_back(btn); // ボタンをリストに追加
-        canvas.drawButton_new(btn, buttons_name_[i], cv::Scalar(255, 255, 255), -1, cv::LINE_8, 0.78, cv::Scalar(0,0,0), 2);
-    }
-
-    Button receive_qr_box_(cv::Point(x_offset,buttons_.back().pos.y+btn_height+10),cv::Size(btn_width*2+btn_space_row,btn_height));// 今 qrを受け取っているかを表示
-    another_box_.push_back(receive_qr_box_);
-    canvas.drawButton_new(another_box_[0], "qr: None", cv::Scalar(0, 0, 0), -1, cv::LINE_AA, 1, cv::Scalar(255,255,255), 2);
-
-    Button receive_box_(cv::Point(x_offset,another_box_[0].pos.y+btn_height-5),cv::Size(btn_width*2+btn_space_row,btn_height));// 今 何を受け取っているかを表示
-    another_box_.push_back(receive_box_);
-    canvas.drawButton_new(another_box_[1], "Other: None", cv::Scalar(0, 0, 0), -1, cv::LINE_AA, 1, cv::Scalar(255,255,255), 2);
-
-    return canvas.getImage();
-}
-
 // 定期的にpublish--------------------------------------------------------------------------------------------------------------------------------------------------------
 void MisoraGUI::timer_callback() {
     rewriteMessage();
@@ -158,58 +136,33 @@ void MisoraGUI::process(std::string topic_name) {
         // RCLCPP_INFO_STREAM(this->get_logger(),"Prepare bool message to " << topic_name+"_trigger" << " " << msg_b.data);
         bool_triggers_[topic_name]->publish(msg_b);
     }
-    else if(not(topic_name == "send")){ //MISORA PCから送られてきた画像をそのまま流す
-
-        result_data.data = "OK";
-
-        if(topic_name == "V_state" && bulb_state_count == 1){
-            result_data.data = "OPEN";
+    else if(topic_name == metal_loss_btn_name){
+        metal_loss_func();
+    }
+    else { //MISORA PCから送られてきた画像をそのまま流す
+        if(topic_name == metal_loss_send_btn_name){
+            std::ostringstream oss;
+            oss << std::fixed << std::setprecision(3) << ML_min;
+            result_data.data = oss.str();
+            result_data.image = ML_image;
         }
-        else if(topic_name == "V_state" && bulb_state_count == 0){
-            result_data.data = "CLOSE";
+        else {
+            if(topic_name == V_stateOP_btn_name)result_data.data = "OPEN";
+            else if(topic_name == V_stateCL_btn_name)result_data.data = "CLOSE";
+            else if(topic_name == V_maneuve_btn_name)result_data.data = "100";
+            else if(topic_name == debrisC_btn_name)result_data.data = "CLEARED";
+            else if(topic_name == debrisD_btn_name)result_data.data = "DEBRIS";
+            else if(topic_name == debrisN_btn_name)result_data.data = "NORMAL";
+            else if(topic_name == missing_btn_name)result_data.data = "VICTIM";
+            result_data.image = temporary_image.clone();
         }
-
-        if(topic_name == "V_maneuve") result_data.data = "100";//完了の信号
-        cv::Mat result_image = temporary_image;
-        RCLCPP_INFO_STREAM(this->get_logger(), "Send image size: " << result_image.size());
-        dt_data_publisher_->publish(result_data);
-        dt_image_publisher_->publish(result_image);
+        result_data.stamp = this->now();
+        RCLCPP_INFO_STREAM(this->get_logger(), "Prepared data: " << result_data.data);
+        // dt_data_publisher_->publish(result_data);
+        // dt_image_publisher_->publish(result_image);
         latest_topic = topic_name;
         // rewriteMessage();
     }
-
-    if(topic_name == "send"){ 
-        std_msgs::msg::Bool msg;
-        if(!send_confirm_flag){
-            msg.data = !send_confirm_flag;
-            dt_flag_->publish(msg);// 表示の信号
-            send_confirm_flag = true;// 表示
-            // RCLCPP_INFO_STREAM(this->get_logger(),"OPEN Window");
-        }else if(send_confirm_flag){
-            msg.data = !send_confirm_flag;
-            dt_flag_->publish(msg);// 閉じる信号
-            send_confirm_flag = false;// 閉じた
-            // RCLCPP_INFO_STREAM(this->get_logger(),"CLOSE Window");
-            // 50ms後にもう一度起動の信号を送信
-            reopen_window_ = this->create_wall_timer(
-                50ms,  // 1秒後
-                [this]() {
-                    std_msgs::msg::Bool re_msg;
-                    re_msg.data = !this->send_confirm_flag;
-                    // RCLCPP_INFO_STREAM(this->get_logger(),"Message: " << !this->send_confirm_flag);
-                    dt_flag_->publish(re_msg);// 再度表示の信号
-                    this->send_confirm_flag = true;
-                    reopen_window_->cancel(); // 処理を一回で止める
-                    reopen_window_.reset();
-                }
-            );
-            
-        }
-
-        
-        
-    }
-
 }
 
 // クリック判定--------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -222,20 +175,8 @@ void MisoraGUI::mouse_click_callback(const geometry_msgs::msg::Point::SharedPtr 
         // クリック位置がボタンの範囲内にあるかチェック
         if (button_rect.contains(point)) {
             std::string button_name = buttons_name_[i];
-            if(button_name == "send") {
-                process(button_name);
-                RCLCPP_INFO_STREAM(this->get_logger(),"Push Send button");
-            }
-            else if(misora_image_flag){ // send以外のボタンを押したときMISORAからの画像が送られていなければ、処理を実行しない判定式
-                if(button_name == "V_state" && bulb_state_count == 0){
-                    bulb_state_count = 1;
-                    rewriteButton(buttons_[i],button_name,cv::Scalar(0,0,255));
-                }
-                else if(button_name == "V_state" && bulb_state_count == 1){
-                    bulb_state_count = 0;
-                    rewriteButton(buttons_[i],button_name,cv::Scalar(255,0,0));
-                }
-                else rewriteButton(buttons_[i],button_name,cv::Scalar(0,0,255));
+            if(misora_image_flag){ // send以外のボタンを押したときMISORAからの画像が送られていなければ、処理を実行しない判定式
+                rewriteButton(buttons_[i],button_name,cv::Scalar(0,0,255));
                 // クリックされたボタンを赤色にした状態でGUIを再描画
                 publish_gui_->publish(mat);
                 
@@ -283,15 +224,165 @@ void MisoraGUI::mouse_click_callback(const geometry_msgs::msg::Point::SharedPtr 
     
 }
 
+// 減肉処理---------------------------------------------------------------------------------------------------------------------------------------------------------
+void MisoraGUI::metal_loss_func(){
+    // 減肉処理を手入力で行う
+    // 入力画面表示
+    std::string show_message = "Input Metal loss value [mm: 0.0-9.0]";
+    std::string text = "";
+    while(true){
+        cv::Mat background = cv::Mat::zeros(360, 640, CV_8UC3);
+
+        // 上部にメッセージを表示
+        int baseline_msg = 0;
+        cv::Size msg_size = cv::getTextSize(show_message, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 0.8, 2, &baseline_msg);
+        cv::Point msg_pt((640 - msg_size.width) / 2, 50); // 上から50pxの位置
+        cv::putText(background, show_message, msg_pt, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 0.8, cv::Scalar(200,200,200), 2);
+
+        // 下部に入力数字を表示（中央よりやや下）
+        int baseline = 0;
+        cv::Size text_size = cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 1, 2, &baseline);
+        cv::Point tp((640 - text_size.width) / 2, 220); // y=220くらいに表示
+        cv::putText(background, text, tp, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 1, cv::Scalar(255,255,255), 2);
+
+        cv::imshow("Input Metal loss value", background);
+        int key = cv::waitKey(10);
+        // 数字0～9と.のみ許可
+        if ((key >= '0' && key <= '9') || key == '.') {
+            // .がすでに含まれていたら追加しない
+            if (key != '.' || text.find('.') == std::string::npos) {
+                text += static_cast<char>(key);
+            }
+        }
+        // バックスペース対応（必要なら）
+        else if (key == 8 && !text.empty()) {
+            text.pop_back();
+        }
+        else if (key == 13 || key == 10){
+            if(!text.empty()){
+                if(ML_min >= std::stof(text)){
+                    ML_min = std::stof(text);
+                    ML_image = ML_temp_image.clone();
+                    RCLCPP_INFO_STREAM(this->get_logger(), "Prepared min data: " << ML_min);
+                }
+                // 検出した値をdoubleに変換
+                
+                // result_data.data = std::to_string(num);
+                // result_data.image = temporary_image;
+                // result_data.stamp = this->now();
+                // latest_topic = metal_loss_btn_name;
+                
+                cv::destroyAllWindows();
+                break;
+
+            }
+        }
+    }
+}
+
+// tf2関連--------------------------------------------------------------------------------------------------------------------------------------------------------
+void MisoraGUI::on_timer(){ 
+    geometry_msgs::msg::TransformStamped t;
+
+    try {
+      // 座標変換結果の取得
+      // 第一引数は"target frame"
+      // 第二引数は"source frame"
+      // 第三引数は変換するタイミング
+      // tf2::TimePointZeroは変換可能な最新の時刻
+      t = tf_buffer_->lookupTransform(
+        target_frame_id, source_frame_id,
+        tf2::TimePointZero);
+    }
+    // 変換を行えなかった時のための例外処理
+    catch (const tf2::TransformException & ex) {
+    //   RCLCPP_INFO(
+    //     this->get_logger(), "Could not transform base_link to dynamic_frame: %s",
+    //     ex.what());
+      return;
+    }
+
+    // 座標変換結果の設定
+    auto & trans_xyz = t.transform.translation;
+
+    auto & quat_msg = t.transform.rotation;
+    tf2::Quaternion quat(
+        quat_msg.x,
+        quat_msg.y,
+        quat_msg.z,
+        quat_msg.w);
+    // クォータニオンー＞RPY変換
+    double roll, pitch, yaw;
+    tf2::Matrix3x3(quat).getRPY(roll, pitch, yaw);
+    pos_data.x = trans_xyz.x;
+    pos_data.y = trans_xyz.y;
+    pos_data.z = trans_xyz.z;
+    pos_data.roll = roll;
+    pos_data.pitch = pitch;
+    pos_data.yaw = yaw;
+    // 座標変換結果の位置情報の出力
+    // RCLCPP_INFO_STREAM(this->get_logger(), "x,y,z: " << trans_xyz.x << ", " <<  trans_xyz.y << ", " << trans_xyz.z);
+    // RCLCPP_INFO_STREAM(this->get_logger(), "r,p,y: " << roll << ", " << pitch << ", " << yaw);
+}
+
+// デジタルツインへ送るデータのpublish--------------------------------------------------------------------------------------------------------
+void MisoraGUI::pos_pub_callback(){
+    dt_pos_publisher_->publish(pos_data);
+    // RCLCPP_INFO_STREAM(this->get_logger(), "Published pos_data");
+}
+void MisoraGUI::data_pub_callback(){
+    if(!qr_data.id.empty() && !result_data.data.empty()){
+        misora2_custom_msg::msg::Digital digital_data;
+        digital_data.id = qr_data.id;
+        digital_data.result = result_data.data;
+        digital_data.image = *(cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", result_data.image).toImageMsg());
+        dt_data_publisher_->publish(digital_data);
+        // 送信したらデータをクリア
+        qr_data.id.clear();
+        qr_data.image.release();
+        qr_data.stamp = rclcpp::Time(0, 0, RCL_ROS_TIME);
+
+        result_data.data.clear();
+        result_data.image.release();
+        result_data.stamp = rclcpp::Time(0, 0, RCL_ROS_TIME);
+    }
+    // RCLCPP_INFO_STREAM(this->get_logger(), "Published pos_data");
+}
+// GUI回りーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーー
+// 画面初期化--------------------------------------------------------------------------------------------------------------------------------------------------------
+cv::Mat MisoraGUI::setup(){
+    DrawTool canvas(width,height,0);//画面描画
+
+    for(size_t i = 0; i < buttons_name_.size(); i++){
+        int row = i / btn_per_row;  // 行数
+        int col = i % btn_per_row;  // 列数
+
+        // ボタン位置を更新
+        Button btn(cv::Point(x_offset + col * (btn_width + btn_space_row), y_offset + row * (btn_height + btn_space_col)),cv::Size(btn_width,btn_height));
+        buttons_.push_back(btn); // ボタンをリストに追加
+        canvas.drawButton_new(btn, buttons_name_[i], cv::Scalar(255, 255, 255), -1, cv::LINE_8, 0.78, cv::Scalar(0,0,0), 1);
+    }
+
+    Button receive_qr_box_(cv::Point(0,buttons_.back().pos.y+btn_height+10),cv::Size(width,btn_height));// 今 qrを受け取っているかを表示
+    another_box_.push_back(receive_qr_box_);
+    canvas.drawButton_new(another_box_[0], "ID: None", cv::Scalar(0, 0, 0), -1, cv::LINE_AA, 1, cv::Scalar(255,255,255), 1);
+
+    Button receive_box_(cv::Point(0,another_box_[0].pos.y+btn_height-5),cv::Size(width,btn_height));// 今 何を受け取っているかを表示
+    another_box_.push_back(receive_box_);
+    canvas.drawButton_new(another_box_[1], "Value: None", cv::Scalar(0, 0, 0), -1, cv::LINE_AA, 1, cv::Scalar(255,255,255), 1);
+
+    return canvas.getImage();
+}
+
 // ボタンの色変更--------------------------------------------------------------------------------------------------------------------------------------------------------
 void MisoraGUI::rewriteButton(Button btn, std::string text, cv::Scalar color) const {
     cv::Point sp = cv::Point(btn.pos.x, btn.pos.y);
     cv::Point ep = cv::Point(btn.pos.x + btn.size.width, btn.pos.y + btn.size.height);
     cv::rectangle(mat, sp, ep, color, cv::FILLED);
     int baseline = 0;
-    cv::Size text_size = cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 0.78, 2, &baseline);
+    cv::Size text_size = cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 0.78, 1, &baseline);
     cv::Point tp(sp.x + (btn.size.width - text_size.width) / 2, sp.y + (btn.size.height + text_size.height) / 2);
-    cv::putText(mat, text, tp, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 0.78, cv::Scalar(0, 0, 0), 2);
+    cv::putText(mat, text, tp, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 0.78, cv::Scalar(0, 0, 0), 1);
     
 }
 
@@ -303,14 +394,12 @@ void MisoraGUI::rewriteMessage(){
     std::string qr_text,receive_text;
     std::vector<std::string> text_list;
 
-    if(latest_qr) qr_text ="qr: True";
-    else qr_text = "qr: None";
+    if(!qr_data.id.empty()) qr_text ="ID: "+ qr_data.id;
+    else qr_text = "ID: None";
     text_list.push_back(qr_text);
 
-    if(latest_topic != "None"){
-        receive_text = "Other: " + latest_topic;
-        if(latest_topic == "V_state" and bulb_state_count == 1) receive_text += "OP";
-        else if(latest_topic == "V_state" and bulb_state_count==0) receive_text += "CL";
+    if(!result_data.data.empty()){
+        receive_text = "Value: " + result_data.data;
     }
     else receive_text = "Other: None";
     text_list.push_back(receive_text);
@@ -324,10 +413,10 @@ void MisoraGUI::rewriteMessage(){
 
         // その後文字を入力
         int baseline = 0;
-        cv::Size text_size = cv::getTextSize(text_list[n], cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 1, 2, &baseline);
+        cv::Size text_size = cv::getTextSize(text_list[n], cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 1, 1, &baseline);
         cv::Point tp = cv::Point(another_box_[n].pos.x + (another_box_[n].size.width - text_size.width) / 2, another_box_[n].pos.y+ (another_box_[n].size.height + text_size.height) / 2);
         cv::Scalar color = cv::Scalar(255, 255, 255);
-        cv::putText(mat, text_list[n], tp, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 1, color, 2);
+        cv::putText(mat, text_list[n], tp, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 1, color, 1);
     }
 }
 
