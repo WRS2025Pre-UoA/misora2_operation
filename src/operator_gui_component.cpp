@@ -137,7 +137,11 @@ void MisoraGUI::process(std::string topic_name) {
         bool_triggers_[topic_name]->publish(msg_b);
     }
     else if(topic_name == metal_loss_btn_name){
-        metal_loss_func();
+        std::string t = input_func("Input Metal loss value [mm: 0.0-9,0]");
+        if(ML_min >= std::stof(t)){
+            ML_min = std::stof(t);
+            ML_image = ML_temp_image.clone();
+        }
     }
     else { //MISORA PCから送られてきた画像をそのまま流す
         if(topic_name == metal_loss_send_btn_name){
@@ -150,10 +154,15 @@ void MisoraGUI::process(std::string topic_name) {
             if(topic_name == V_stateOP_btn_name)result_data.data = "OPEN";
             else if(topic_name == V_stateCL_btn_name)result_data.data = "CLOSE";
             else if(topic_name == V_maneuve_btn_name)result_data.data = "100";
-            else if(topic_name == debrisC_btn_name)result_data.data = "CLEARED";
-            else if(topic_name == debrisD_btn_name)result_data.data = "DEBRIS";
-            else if(topic_name == debrisN_btn_name)result_data.data = "NORMAL";
-            else if(topic_name == missing_btn_name)result_data.data = "VICTIM";
+            else{
+                if(topic_name == debrisC_btn_name)result_data.data = "CLEARED";
+                else if(topic_name == debrisD_btn_name)result_data.data = "DEBRIS";
+                else if(topic_name == debrisN_btn_name)result_data.data = "NORMAL";
+                else if(topic_name == missing_btn_name)result_data.data = "VICTIM";
+
+                std::string areaID = input_func("Input Area ID [AR01 ~ AR36]");
+                qr_data.id = areaID;
+            }
             result_data.image = temporary_image.clone();
         }
         result_data.stamp = this->now();
@@ -224,11 +233,9 @@ void MisoraGUI::mouse_click_callback(const geometry_msgs::msg::Point::SharedPtr 
     
 }
 
-// 減肉処理---------------------------------------------------------------------------------------------------------------------------------------------------------
-void MisoraGUI::metal_loss_func(){
-    // 減肉処理を手入力で行う
+// エリアIDや減肉値の手入力関数---------------------------------------------------------------------------------------------------------------------
+std::string MisoraGUI::input_func(std::string show_message){
     // 入力画面表示
-    std::string show_message = "Input Metal loss value [mm: 0.0-9.0]";
     std::string text = "";
     while(true){
         cv::Mat background = cv::Mat::zeros(360, 640, CV_8UC3);
@@ -245,7 +252,7 @@ void MisoraGUI::metal_loss_func(){
         cv::Point tp((640 - text_size.width) / 2, 220); // y=220くらいに表示
         cv::putText(background, text, tp, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 1, cv::Scalar(255,255,255), 2);
 
-        cv::imshow("Input Metal loss value", background);
+        cv::imshow("Input Display", background);
         int key = cv::waitKey(10);
         // 数字0～9と.のみ許可
         if ((key >= '0' && key <= '9') || key == '.') {
@@ -254,30 +261,21 @@ void MisoraGUI::metal_loss_func(){
                 text += static_cast<char>(key);
             }
         }
+        if (key >= 'a' && key <= 'z'){
+            text += std::toupper(static_cast<char>(key));
+        }
         // バックスペース対応（必要なら）
         else if (key == 8 && !text.empty()) {
             text.pop_back();
         }
         else if (key == 13 || key == 10){
             if(!text.empty()){
-                if(ML_min >= std::stof(text)){
-                    ML_min = std::stof(text);
-                    ML_image = ML_temp_image.clone();
-                    RCLCPP_INFO_STREAM(this->get_logger(), "Prepared min data: " << ML_min);
-                }
-                // 検出した値をdoubleに変換
-                
-                // result_data.data = std::to_string(num);
-                // result_data.image = temporary_image;
-                // result_data.stamp = this->now();
-                // latest_topic = metal_loss_btn_name;
-                
                 cv::destroyAllWindows();
                 break;
-
             }
         }
     }
+    return text;
 }
 
 // tf2関連--------------------------------------------------------------------------------------------------------------------------------------------------------

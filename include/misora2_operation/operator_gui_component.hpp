@@ -8,6 +8,7 @@
 #include <chrono>
 #include <functional>
 #include <algorithm>
+#include <cctype>
 
 #include <rclcpp/clock.hpp>
 #include <rclcpp/time.hpp>
@@ -118,7 +119,7 @@ private:
     void rewriteButton(Button btn, std::string text, cv::Scalar color) const;// 指定したボタンの色、表示内容を変更
     void rewriteMessage();
     void process(std::string topic_name);// クリックしたボタンに対応した処理を行う関数
-    void metal_loss_func();// 金属損失の処理　手入力
+    std::string input_func(std::string show_message);// 金属損失の処理　手入力
     void pos_pub_callback();// 位置情報を定期的に送信
     void data_pub_callback();// デジタルツインへ一定間隔で検査し、揃ったら報告
     void on_timer(); // tfの位置情報を定期的に取得してpos_dataに格納する関数
