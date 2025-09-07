@@ -30,16 +30,17 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
     };
 
     // 連続処理のトリガー bool_publisher初期化-----------------------------------------------------------------------------
-    if (pub_sub_topics.find(param) != pub_sub_topics.end()) {
-        for (const auto &topic : pub_sub_topics[param]) {
-            if(std::find(trigger_list.begin(), trigger_list.end(), topic) != trigger_list.end()){
-                bool_triggers_[topic] = this->create_publisher<std_msgs::msg::Bool>(topic+"_trigger", 10);
-                RCLCPP_INFO(this->get_logger(), "Created publisher for topic: %s", topic.c_str());// pressure,qr,cracks
-            }
-        }
-    } else {
-        RCLCPP_ERROR(this->get_logger(), "Invalid profile: %s", param.c_str());
-    } 
+    // if (pub_sub_topics.find(param) != pub_sub_topics.end()) {
+    //     for (const auto &topic : pub_sub_topics[param]) {
+    //         if(std::find(trigger_list.begin(), trigger_list.end(), topic) != trigger_list.end()){
+    //             bool_triggers_[topic] = this->create_publisher<std_msgs::msg::Bool>(topic+"_trigger", 10);
+    //             RCLCPP_INFO(this->get_logger(), "Created publisher for topic: %s", topic.c_str());// pressure,qr,cracks
+    //         }
+    //     }
+    // } else {
+    //     RCLCPP_ERROR(this->get_logger(), "Invalid profile: %s", param.c_str());
+    // } 
+    triggers_ = this->create_publisher<std_msgs::msg::String>("triggers", 10);
 
     // MISORA側から送られてくる結果、画像を受け取るsubscriber初期化----------------------------------------------------------
     if (pub_sub_topics.find(param) != pub_sub_topics.end()) {
@@ -68,10 +69,10 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
     } 
 
     // MISORAから未加工な画像(pressureなどが処理に掛ける画像)　disaster_reportやdebris_removalのため
-    receive_raw_image_ = this->create_subscription<MyAdaptedType>("raw_image",10,
-        [this](const cv::Mat msg){
-            if(!msg.empty()){
-                temporary_image = msg;
+    receive_raw_image_ = this->create_subscription<sensor_msgs::msg::Image>("raw_image",10,
+        [this](const sensor_msgs::msg::Image::SharedPtr msg){
+            if(!msg->data.empty()){
+                temporary_image = cv_bridge::toCvCopy(msg, msg->encoding)->image;
                 misora_image_flag = true;
             }
             else misora_image_flag = false;
@@ -131,10 +132,10 @@ void MisoraGUI::timer_callback() {
 // ボタンごとの信号処理--------------------------------------------------------------------------------------------------------------------------------------------------------
 void MisoraGUI::process(std::string topic_name) {
     if(std::find(trigger_list.begin(), trigger_list.end(), topic_name) != trigger_list.end()){ //被災者の顔写真を送るのか、QRのデコードならいらないかも
-        std_msgs::msg::Bool msg_b;
-        msg_b.data = true;
+        std_msgs::msg::String msg_topic;
+        msg_topic.data = topic_name;
         // RCLCPP_INFO_STREAM(this->get_logger(),"Prepare bool message to " << topic_name+"_trigger" << " " << msg_b.data);
-        bool_triggers_[topic_name]->publish(msg_b);
+        triggers_->publish(msg_topic);
     }
     else if(topic_name == metal_loss_btn_name){
         std::string t = input_func("Input Metal loss value [mm: 0.0-9,0]");

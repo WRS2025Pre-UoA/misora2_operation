@@ -131,14 +131,15 @@ private:
     rclcpp::TimerBase::SharedPtr error_message_timer_;// MISORAからの画像がないとき実行できないと表示
     // rclcpp::TimerBase::SharedPtr reopen_window_;// 確認画面が表示されてるときにsendボタンが押されたとき
     
-    std::map<std::string, rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr> bool_triggers_;// 連続処理信号
+    // std::map<std::string, rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr> bool_triggers_;// 連続処理信号
+    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr triggers_;// 連続処理信号 pressure, qr, cracks
 
     // std::map<std::string, rclcpp::Subscription<std_msgs::msg::String>::SharedPtr> receive_data_;// 検出結果をうけとる　
     // std::map<std::string, rclcpp::Subscription<MyAdaptedType>::SharedPtr> receive_image_;// 検出画像をうけとる
 
     std::map<std::string, rclcpp::Subscription<misora2_custom_msg::msg::Custom>::SharedPtr> receive_results_;// 検出画像をうけとる
 
-    rclcpp::Subscription<MyAdaptedType>::SharedPtr receive_raw_image_;// MISORAから来る生画像
+    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr receive_raw_image_;// MISORAから来る生画像
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr received_image_metal_;// misoraからの減肉画像を受け取る
     // デジタルツイン関連----------------------------------------------------------------------------------------
     rclcpp::Publisher<misora2_custom_msg::msg::Digital>::SharedPtr dt_data_publisher_;// デジタルツイン報告ノードへ送る
