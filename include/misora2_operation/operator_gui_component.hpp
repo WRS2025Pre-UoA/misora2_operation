@@ -9,6 +9,7 @@
 #include <functional>
 #include <algorithm>
 #include <cctype>
+#include <filesystem>
 
 #include <rclcpp/clock.hpp>
 #include <rclcpp/time.hpp>
@@ -39,6 +40,7 @@
 #include "misora2_custom_msg/msg/pos.hpp"
 
 using namespace std::chrono_literals;
+namespace fs = std::filesystem;
 
 namespace component_operator_gui
 {

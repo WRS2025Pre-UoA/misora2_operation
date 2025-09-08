@@ -53,12 +53,26 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
                         qr_data.id = msg->result;
                         qr_data.image = cv_bridge::toCvCopy(msg->image, msg->image.encoding)->image;
                         qr_data.stamp = this->now();
+                        std::string filename = "src/misora2_operation/data/QR_"+qr_data.id+".png";
+                        cv::imwrite(filename, qr_data.image);
                     }
                     else {
                         latest_topic = topic;
                         result_data.data = msg->result;
                         result_data.image = cv_bridge::toCvCopy(msg->image, msg->image.encoding)->image;
+                        cv::Mat save_image = cv_bridge::toCvCopy(msg->raw_image, msg->raw_image.encoding)->image;
                         result_data.stamp = this->now();
+                        // ディレクトリ内の .png ファイルをカウント
+                        size_t count = 0;
+                        for (const auto& entry : fs::directory_iterator("src/misora2_operation/data/")) {
+                            if (entry.is_regular_file() && entry.path().extension() == ".png") {
+                                count++;
+                            }
+                        }
+                        size_t next_index = count + 1;
+                        std::string filename = "src/misora2_operation/data/"+topic+"_result_"+std::to_string(next_index)+".png";
+                        cv::imwrite(filename, save_image);
+
                     }
                 });// 受け取り時の処理
                 RCLCPP_INFO(this->get_logger(), "Created subscriber for topic: %s", topic.c_str());
