@@ -79,6 +79,7 @@ public:
 
     // 最新の値を格納確認するリスト----------------------------------
     std::string latest_topic = "None";
+    std::string areaID = "";
     bool latest_qr = false;
     // MISORAからの画像が飛んできたか否か----------------------------
     bool misora_image_flag = false;
@@ -104,6 +105,8 @@ public:
     // MISORAから送られてくる位置情報の処理----------------------------------------------
     // tfの設定
     std::string target_frame_id, source_frame_id;
+    double areaWidth, areaHeight; // 1Fのエリアサイズ
+    double areaPlayValue = 0.5; // 隅の領域の遊び値
     misora2_custom_msg::msg::Pos pos_data;
     
     // 減肉関連----------------------------------------------------------------
@@ -125,6 +128,7 @@ private:
     void pos_pub_callback();// 位置情報を定期的に送信
     void data_pub_callback();// デジタルツインへ一定間隔で検査し、揃ったら報告
     void on_timer(); // tfの位置情報を定期的に取得してpos_dataに格納する関数
+    int search_areaID(double x, double y); // x,y,height,widthからエリアIDを見つける
 
     rclcpp::Publisher<MyAdaptedType>::SharedPtr publish_gui_;// ボタン画面を流すpublisher
     rclcpp::Subscription<geometry_msgs::msg::Point>::SharedPtr click_;// ボタンクリック座標を受け取るsubscriber
