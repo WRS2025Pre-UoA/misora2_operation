@@ -21,7 +21,7 @@
 #include <std_msgs/msg/float64.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <geometry_msgs/msg/point.hpp>
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 #include <rclcpp/type_adapter.hpp>
 
 // listenerを扱うファイル
@@ -63,6 +63,7 @@ public:
     std::vector<Button> another_box_;
     
     // ボタン名----------------------------------------------------
+    std::string param;
     std::vector<std::string> buttons_name_;//表示しているボタンのリスト
     const std::string pressure_btn_name = "pressure";
     const std::string qr_btn_name = "qr";
@@ -90,12 +91,11 @@ public:
     struct qr_set{
         std::string id; // QRコードのID
         cv::Mat image; // QRコードの画像
-        rclcpp::Time stamp; // 受信時刻
     }qr_data;
     struct result_set{
         std::string data; // 検出結果
         cv::Mat image; // 検出時の画像
-        rclcpp::Time stamp; // 受信時刻
+        cv::Mat raw_image; //　プログラム修正用の画像
     }result_data;
     cv::Mat temporary_image; // MISORAから送信されてくる生画像
     // ボタンの条件分岐で使うリスト------------------------------------------------------
@@ -129,6 +129,8 @@ private:
     void data_pub_callback();// デジタルツインへ一定間隔で検査し、揃ったら報告
     void on_timer(); // tfの位置情報を定期的に取得してpos_dataに格納する関数
     int search_areaID(double x, double y); // x,y,height,widthからエリアIDを見つける
+    void send_data(std::string str1, std::string str2, cv::Mat& img1); // デジタルツインへ送信を行う関数
+    void save_img(std::string name, cv::Mat& img);
 
     rclcpp::Publisher<MyAdaptedType>::SharedPtr publish_gui_;// ボタン画面を流すpublisher
     rclcpp::Subscription<geometry_msgs::msg::Point>::SharedPtr click_;// ボタンクリック座標を受け取るsubscriber

@@ -7,7 +7,7 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
 {
     // ミッションごとにモードを変更------------------------------------------------------------------------------------------
     this->declare_parameter("mode", "P6");
-    std::string param = this->get_parameter("mode").as_string();
+    param = this->get_parameter("mode").as_string();
     RCLCPP_INFO(this->get_logger(), "Received my_parameter: %s", param.c_str());
     
     // tf2の初期化 target_frame,source_frameのパラメータ取得----------------------------------------------------------------
@@ -48,13 +48,15 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
                         latest_qr = true;
                         qr_data.id = msg->result;
                         qr_data.image = cv_bridge::toCvCopy(msg->image, msg->image.encoding)->image;
-                        qr_data.stamp = this->now();
+                        std::string filename = "/home/misora2/misora2_ws/src/misora2_operation/data/QR_"+qr_data.id+".png";
+                        cv::imwrite(filename, qr_data.image);
                     }
                     else {
                         latest_topic = topic;
                         result_data.data = msg->result;
                         result_data.image = cv_bridge::toCvCopy(msg->image, msg->image.encoding)->image;
-                        result_data.stamp = this->now();
+                        result_data.raw_image = cv_bridge::toCvCopy(msg->raw_image, msg->raw_image.encoding)->image;
+                        save_img(topic, result_data.raw_image);
                     }
                 });// 受け取り時の処理
                 RCLCPP_INFO(this->get_logger(), "Created subscriber for topic: %s", topic.c_str());
@@ -111,7 +113,8 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
     // ボタンのクリック判定subscriberを作成
     click_ = this->create_subscription<geometry_msgs::msg::Point>(
         "gui_with_buttons_mouse_left", 10, std::bind(&MisoraGUI::mouse_click_callback, this, std::placeholders::_1));
-
+    
+    
     // ボタンの画面生成
     mat = setup();
 
@@ -148,24 +151,29 @@ void MisoraGUI::process(std::string topic_name) {
             result_data.image = ML_image;
         }
         else {
-            if(topic_name == V_stateOP_btn_name)result_data.data = "OPEN";
-            else if(topic_name == V_stateCL_btn_name)result_data.data = "CLOSE";
-            else if(topic_name == V_maneuve_btn_name)result_data.data = "100";
+            if(topic_name == V_stateOP_btn_name){
+                result_data.data = "OPEN";
+                result_data.image = temporary_image.clone();
+            }
+            else if(topic_name == V_stateCL_btn_name){
+                result_data.data = "CLOSE";
+                result_data.image = temporary_image.clone();
+            }
+            else if(topic_name == V_maneuve_btn_name){
+                result_data.data = "100";
+                result_data.image = temporary_image.clone();
+            }
             else{
                 if(topic_name == debrisC_btn_name)result_data.data = "CLEARED";
                 else if(topic_name == debrisD_btn_name)result_data.data = "DEBRIS";
                 else if(topic_name == debrisN_btn_name)result_data.data = "NORMAL";
                 else if(topic_name == missing_btn_name)result_data.data = "VICTIM";
 
-                std::string areaID = input_func("Input Area ID [AR01 ~ AR36]");
-                qr_data.id = areaID;
+                // std::string areaID = input_func("Input Area ID [AR01 ~ AR36]");
+                send_data(areaID, result_data.data, temporary_image);
             }
-            result_data.image = temporary_image.clone();
         }
-        result_data.stamp = this->now();
         RCLCPP_INFO_STREAM(this->get_logger(), "Prepared data: " << result_data.data);
-        // dt_data_publisher_->publish(result_data);
-        // dt_image_publisher_->publish(result_image);
         latest_topic = topic_name;
         // rewriteMessage();
     }
@@ -348,22 +356,46 @@ void MisoraGUI::pos_pub_callback(){
 }
 void MisoraGUI::data_pub_callback(){
     if(!qr_data.id.empty() && !result_data.data.empty()){
-        misora2_custom_msg::msg::Digital digital_data;
-        digital_data.id = qr_data.id;
-        digital_data.result = result_data.data;
-        digital_data.image = *(cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", result_data.image).toImageMsg());
-        dt_data_publisher_->publish(digital_data);
+        send_data(qr_data.id, result_data.data, result_data.image);
+        // digital_data.id = qr_data.id;
+        // digital_data.result = result_data.data;
+        // digital_data.result_image = *(cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", result_data.image).toImageMsg());
+        // digital_data.raw_image = *(cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", result_data.raw_image).toImageMsg());
+        // digital_data.qr_image = *(cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", qr_data.image).toImageMsg());
+        // dt_data_publisher_->publish(digital_data);
         // 送信したらデータをクリア
         qr_data.id.clear();
         qr_data.image.release();
-        qr_data.stamp = rclcpp::Time(0, 0, RCL_ROS_TIME);
 
         result_data.data.clear();
         result_data.image.release();
-        result_data.stamp = rclcpp::Time(0, 0, RCL_ROS_TIME);
+        result_data.raw_image.release();
     }
     // RCLCPP_INFO_STREAM(this->get_logger(), "Published pos_data");
 }
+
+void MisoraGUI::send_data(std::string str1, std::string str2, cv::Mat& img1){
+    misora2_custom_msg::msg::Digital digital_data;
+    digital_data.id = str1;
+    digital_data.result = str2;
+    digital_data.image = *(cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", img1).toImageMsg());
+    dt_data_publisher_->publish(digital_data);
+}
+
+void MisoraGUI::save_img(std::string name, cv::Mat& img){
+    // ディレクトリ内の .png ファイルをカウント
+    std::string dir = "/home/misora2/misora2_ws/src/misora2_operation/data/";
+    size_t count = 0;
+    for (const auto& entry : fs::directory_iterator(dir)) {
+        if (entry.is_regular_file() && entry.path().extension() == ".png") {
+            count++;
+        }
+    }
+    size_t next_index = count + 1;
+    std::string filename = dir+name+"_result_"+std::to_string(next_index)+".png";
+    cv::imwrite(filename, img);
+}
+
 // GUI回りーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーー
 // 画面初期化--------------------------------------------------------------------------------------------------------------------------------------------------------
 cv::Mat MisoraGUI::setup(){
@@ -378,19 +410,34 @@ cv::Mat MisoraGUI::setup(){
         buttons_.push_back(btn); // ボタンをリストに追加
         canvas.drawButton_new(btn, buttons_name_[i], cv::Scalar(255, 255, 255), -1, cv::LINE_8, 0.78, cv::Scalar(0,0,0), 1);
     }
+    bool isCompact = (param == "P1" || param == "P2" || param == "P4" || param == "P6");
+    int boxHeight = isCompact ? btn_height / 2 : btn_height;
+    int gap = isCompact ? 8 : 10;
+    int step = isCompact ? (btn_height - 10) : (btn_height - 5);
 
-    Button receive_qr_box_(cv::Point(0,buttons_.back().pos.y+btn_height+8),cv::Size(width,btn_height/2));// 今 qrを受け取っているかを表示
-    another_box_.push_back(receive_qr_box_);
-    canvas.drawButton_new(another_box_[0], "ID: None", cv::Scalar(0, 0, 0), -1, cv::LINE_AA, 1, cv::Scalar(255,255,255), 1);
+    std::vector<std::string> labels;
+    if (isCompact) {
+        labels = {"ID: None", "Area ID: None", "Value: None"};
+    } else {
+        labels = {"ID: None", "Value: None"};
+    }
 
-    Button receive_box_(cv::Point(0,another_box_[0].pos.y+btn_height-10),cv::Size(width,btn_height/2));// 今 何を受け取っているかを表示
-    another_box_.push_back(receive_box_);
-    canvas.drawButton_new(another_box_[1], "Area ID: None", cv::Scalar(0, 0, 0), -1, cv::LINE_AA, 1, cv::Scalar(255,255,255), 1);
+    // 1つ目の位置
+    int current_y = buttons_.back().pos.y + btn_height + gap;
 
-    Button receive_box_1(cv::Point(0,another_box_[1].pos.y+btn_height-10),cv::Size(width,btn_height/2));// 今 何を受け取っているかを表示
-    another_box_.push_back(receive_box_1);
-    canvas.drawButton_new(another_box_[1], "Value: None", cv::Scalar(0, 0, 0), -1, cv::LINE_AA, 1, cv::Scalar(255,255,255), 1);
+    for (size_t i = 0; i < labels.size(); ++i) {
+        Button box(cv::Point(0, current_y), cv::Size(width, boxHeight));
+        another_box_.push_back(box);
 
+        canvas.drawButton_new(
+            another_box_.back(), labels[i],
+            cv::Scalar(0, 0, 0), -1, cv::LINE_AA, 1,
+            cv::Scalar(255, 255, 255), 1
+        );
+
+        current_y += step;
+    }
+    
     return canvas.getImage();
 }
 
@@ -411,36 +458,43 @@ void MisoraGUI::rewriteMessage(){
 // 値が更新されたらその都度-------------------------------------------------------------------------------
 // or
 // publish guiで定期的に　今-------------------------------------------------------------------------------
-    std::string qr_text,area_text, receive_text;
     std::vector<std::string> text_list;
 
-    if(!qr_data.id.empty()) qr_text ="ID: "+ qr_data.id;
-    else qr_text = "ID: None";
-    text_list.push_back(qr_text);
+    // 表示するテキストを組み立て
+    // ID
+    if (!qr_data.id.empty()) text_list.push_back("ID: " + qr_data.id);
+    else text_list.push_back("ID: None");
 
-    if(!areaID.empty()) area_text = "Area ID: " + areaID;
-    else area_text = "Area ID: None";
-    text_list.push_back(area_text);
-
-    if(!result_data.data.empty()){
-        receive_text = "Value: " + result_data.data;
+    // P3, P5 のときだけ Area ID を入れる
+    if (param == "P1" || param == "P2" || param == "P4" || param == "P6") {
+        if (!areaID.empty()) text_list.push_back("Area ID: " + areaID);
+        else text_list.push_back("Area ID: None");
     }
-    else receive_text = "Other: None";
-    text_list.push_back(receive_text);
-    
-    // qr-----------------------------------------
-    for(int n = 0; n < 3; n++){
-        // まず黒いボックスで上書き
-        cv::Point receive_btn_sp = cv::Point(another_box_[n].pos.x, another_box_[n].pos.y);
-        cv::Point receive_btn_ep = cv::Point(receive_btn_sp.x+another_box_[n].size.width,receive_btn_sp.y+another_box_[n].size.height);
-        cv::rectangle(mat, receive_btn_sp, receive_btn_ep, 0, cv::FILLED);
 
-        // その後文字を入力
+    // Value or Other
+    if (!result_data.data.empty()) text_list.push_back("Value: " + result_data.data);
+    else text_list.push_back("Other: None");
+
+    // 描画処理
+    for (size_t n = 0; n < text_list.size(); ++n) {
+        // まず黒いボックスで上書き
+        cv::Point sp = cv::Point(another_box_[n].pos.x, another_box_[n].pos.y);
+        cv::Point ep = cv::Point(sp.x + another_box_[n].size.width, sp.y + another_box_[n].size.height);
+        cv::rectangle(mat, sp, ep, 0, cv::FILLED);
+
+        // 文字のサイズと位置
         int baseline = 0;
-        cv::Size text_size = cv::getTextSize(text_list[n], cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 1, 1, &baseline);
-        cv::Point tp = cv::Point(another_box_[n].pos.x + (another_box_[n].size.width - text_size.width) / 2, another_box_[n].pos.y+ (another_box_[n].size.height + text_size.height) / 2);
-        cv::Scalar color = cv::Scalar(255, 255, 255);
-        cv::putText(mat, text_list[n], tp, cv::FONT_HERSHEY_SIMPLEX|cv::FONT_ITALIC, 1, color, 1);
+        cv::Size text_size = cv::getTextSize(text_list[n],
+            cv::FONT_HERSHEY_SIMPLEX | cv::FONT_ITALIC, 1, 1, &baseline);
+
+        cv::Point tp(
+            another_box_[n].pos.x + (another_box_[n].size.width - text_size.width) / 2,
+            another_box_[n].pos.y + (another_box_[n].size.height + text_size.height) / 2
+        );
+
+        cv::putText(mat, text_list[n], tp,
+            cv::FONT_HERSHEY_SIMPLEX | cv::FONT_ITALIC, 1,
+            cv::Scalar(255, 255, 255), 1);
     }
 }
 
