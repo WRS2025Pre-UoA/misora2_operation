@@ -48,7 +48,7 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
                         latest_qr = true;
                         qr_data.id = msg->result;
                         qr_data.image = cv_bridge::toCvCopy(msg->image, msg->image.encoding)->image;
-                        std::string filename = "/home/misora2/misora2_ws/src/misora2_operation/data/QR_"+qr_data.id+".png";
+                        std::string filename = dir + "QR_"+qr_data.id+".png";
                         cv::imwrite(filename, qr_data.image);
                     }
                     else {
@@ -384,7 +384,6 @@ void MisoraGUI::send_data(std::string str1, std::string str2, cv::Mat& img1){
 
 void MisoraGUI::save_img(std::string name, cv::Mat& img){
     // ディレクトリ内の .png ファイルをカウント
-    std::string dir = "/home/misora2/misora2_ws/src/misora2_operation/data/";
     size_t count = 0;
     for (const auto& entry : fs::directory_iterator(dir)) {
         if (entry.is_regular_file() && entry.path().extension() == ".png") {

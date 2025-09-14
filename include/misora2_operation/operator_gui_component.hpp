@@ -85,9 +85,11 @@ public:
     // MISORAからの画像が飛んできたか否か----------------------------
     bool misora_image_flag = false;
 
+    // デバッグ用画像保存先
+    std::string dir = "/home/misora2/misora2_ws/src/misora2_operation/data/";
+    // std::string dir = "src/misora2_operation/data/";
+
     //　受け取ったメッセージを格納-------------------------------------
-    // std_msgs::msg::String qr_id, result_data;// 確認ノードへ報告を行う時に必要なid 結果を格納
-    // cv::Mat temporary_image, receive_image, receive_qr_image;// sensor_msgsで送られてくるので一時的にcv::Matへ misora空の生画像temp 検出ノードからreceive
     struct qr_set{
         std::string id; // QRコードのID
         cv::Mat image; // QRコードの画像
@@ -100,7 +102,6 @@ public:
     cv::Mat temporary_image; // MISORAから送信されてくる生画像
     // ボタンの条件分岐で使うリスト------------------------------------------------------
     std::vector<std::string> trigger_list = {pressure_btn_name, qr_btn_name, cracks_btn_name};
-    // std::vector<std::string> confirm_list = {pressure_btn_name, cracks_btn_name, "metal_loss"};
 
     // MISORAから送られてくる位置情報の処理----------------------------------------------
     // tfの設定
