@@ -149,8 +149,8 @@ private:
 
     std::map<std::string, rclcpp::Subscription<misora2_custom_msg::msg::Custom>::SharedPtr> receive_results_;// 検出画像をうけとる
 
-    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr receive_raw_image_;// MISORAから来る生画像
-    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr received_image_metal_;// misoraからの減肉画像を受け取る
+    rclcpp::Subscription<MyAdaptedType>::SharedPtr receive_raw_image_;// MISORAから来る生画像
+    rclcpp::Subscription<MyAdaptedType>::SharedPtr received_image_metal_;// misoraからの減肉画像を受け取る
     // デジタルツイン関連----------------------------------------------------------------------------------------
     rclcpp::Publisher<misora2_custom_msg::msg::Digital>::SharedPtr dt_data_publisher_;// デジタルツイン報告ノードへ送る
     rclcpp::TimerBase::SharedPtr data_pub_;

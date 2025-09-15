@@ -67,19 +67,24 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
     } 
 
     // MISORAから未加工な画像(pressureなどが処理に掛ける画像)　disaster_reportやdebris_removalのため
-    receive_raw_image_ = this->create_subscription<sensor_msgs::msg::Image>("raw_image",10,
-        [this](const sensor_msgs::msg::Image::SharedPtr msg){
-            if(!msg->data.empty()){
-                temporary_image = cv_bridge::toCvCopy(msg, msg->encoding)->image;
+    receive_raw_image_ = this->create_subscription<MyAdaptedType>("raw_image",10,
+        [this](const cv::Mat& msg){
+            if(!msg.empty()){
+                // temporary_image = cv_bridge::toCvCopy(msg, msg->encoding)->image;
+                temporary_image = msg.clone();
                 misora_image_flag = true;
             }
-            else misora_image_flag = false;
+            else {
+                misora_image_flag = false;
+                RCLCPP_ERROR(this->get_logger(), "Receive image empty from MISORA2");
+            }
         });
     // 減肉用画像を常に受け取り更新する
-    received_image_metal_ = this->create_subscription<sensor_msgs::msg::Image>("raw_image_metal",10,
-        [this](const sensor_msgs::msg::Image::SharedPtr msg){
-            if(!msg->data.empty()){
-                ML_temp_image = cv_bridge::toCvCopy(msg, msg->encoding)->image;
+    received_image_metal_ = this->create_subscription<MyAdaptedType>("raw_image_metal",10,
+        [this](const cv::Mat& msg){
+            if(!msg.empty()){
+                // ML_temp_image = cv_bridge::toCvCopy(msg, msg->encoding)->image;
+                ML_temp_image = msg.clone();
             }
         });
     // tf2関連 ----------------------------------------------------------------------------------------
@@ -126,6 +131,7 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
 void MisoraGUI::timer_callback() {
     rewriteMessage();
     if(not(mat.empty()))publish_gui_->publish(mat);
+    if(!misora_image_flag) RCLCPP_ERROR(this->get_logger(), "Don't Receive image from MISORA2");
 }
 
 // ボタンごとの信号処理--------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -232,7 +238,7 @@ void MisoraGUI::mouse_click_callback(const geometry_msgs::msg::Point::SharedPtr 
                             }
                         );
                 // publish_gui_->publish(mat);    
-                RCLCPP_INFO_STREAM(this->get_logger(),"Push button when unreceived image"); 
+                RCLCPP_ERROR(this->get_logger(),"Push button when unreceived image"); 
             }
             // RCLCPP_INFO(this->get_logger(), "Button '%s' clicked",button_name.c_str());
         }
