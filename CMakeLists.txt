@@ -23,7 +23,7 @@ find_package(rclcpp_components REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
-find_package(OpenCV REQUIRED COMPONENTS core)
+find_package(OpenCV 4.8 REQUIRED COMPONENTS core)
 find_package(misora2_custom_msg REQUIRED)
 find_package(tf2 REQUIRED) # tf2の使用のために必要
 find_package(tf2_ros REQUIRED) #tf2の使用のために必要

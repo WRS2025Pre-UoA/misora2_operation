@@ -22,6 +22,7 @@
 #include <sensor_msgs/msg/image.hpp>
 #include <geometry_msgs/msg/point.hpp>
 #include <cv_bridge/cv_bridge.hpp>
+// #include <cv_bridge/cv_bridge.h>
 #include <rclcpp/type_adapter.hpp>
 
 // listenerを扱うファイル
@@ -86,8 +87,8 @@ public:
     bool misora_image_flag = false;
 
     // デバッグ用画像保存先
-    std::string dir = "/home/misora2/misora2_ws/src/misora2_operation/data/";
-    // std::string dir = "src/misora2_operation/data/";
+    // std::string dir = "/home/misora2/misora2_ws/src/misora2_operation/data/";
+    std::string dir = "/home/ros/wrs2025/src/misora2_operation/data/";
 
     //　受け取ったメッセージを格納-------------------------------------
     struct qr_set{

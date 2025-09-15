@@ -171,6 +171,9 @@ void MisoraGUI::process(std::string topic_name) {
 
                 // std::string areaID = input_func("Input Area ID [AR01 ~ AR36]");
                 send_data(areaID, result_data.data, temporary_image);
+                result_data.data.clear();
+                result_data.image.release();
+                result_data.raw_image.release();
             }
         }
         RCLCPP_INFO_STREAM(this->get_logger(), "Prepared data: " << result_data.data);
@@ -304,11 +307,11 @@ void MisoraGUI::on_timer(){
     // 座標変換結果の設定
     auto & trans_xyz = t.transform.translation;
 
-    int id = search_areaID(trans_xyz.x, trans_xyz.y);
+    // int id = search_areaID(trans_xyz.x, trans_xyz.y);
 
-    std::ostringstream ss;
-    ss << "AR" << std::setw(2) << std::setfill('0') << id;
-    areaID = ss.str();
+    // std::ostringstream ss;
+    // ss << "AR" << std::setw(2) << std::setfill('0') << id;
+    // areaID = ss.str();
     // RCLCPP_INFO_STREAM(this->get_logger(), "Current Area ID: " << areaID);
     auto & quat_msg = t.transform.rotation;
     tf2::Quaternion quat(
@@ -351,6 +354,10 @@ int MisoraGUI::search_areaID(double x, double y){
 
 // デジタルツインへ送るデータのpublish--------------------------------------------------------------------------------------------------------
 void MisoraGUI::pos_pub_callback(){
+    int id = search_areaID(pos_data.x, pos_data.y);
+    std::ostringstream ss;
+    ss << "AR" << std::setw(2) << std::setfill('0') << id;
+    areaID = ss.str();
     dt_pos_publisher_->publish(pos_data);
     // RCLCPP_INFO_STREAM(this->get_logger(), "Published pos_data");
 }
