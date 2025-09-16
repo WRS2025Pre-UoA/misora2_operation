@@ -87,7 +87,7 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
                 }
 
                 misora_image_flag = true;
-                RCLCPP_INFO_STREAM(this->get_logger(),"Receive Image from MISORA2");
+                // RCLCPP_INFO_STREAM(this->get_logger(),"Receive Image from MISORA2");
             }
             catch (const cv::Exception &e)
             {
@@ -159,9 +159,12 @@ void MisoraGUI::process(std::string topic_name) {
         triggers_->publish(msg_topic);
     }
     else if(topic_name == metal_loss_btn_name){
-        std::string t = input_func("Input Metal loss value [mm: 0.0-9,0]");
-        if(ML_min >= std::stof(t)){
-            ML_min = std::stof(t);
+        std::string t = input_func("Input Metal loss value [mm: 0.0-9.0]");
+        if(ML_min >= std::stod(t)){
+            ML_min = std::stod(t);
+            std::ostringstream oss;
+            oss << std::fixed << std::setprecision(3) << ML_min;
+            ML_min_S = oss.str();
             ML_image = ML_temp_image.clone();
         }
     }
@@ -171,6 +174,10 @@ void MisoraGUI::process(std::string topic_name) {
             oss << std::fixed << std::setprecision(3) << ML_min;
             result_data.data = oss.str();
             result_data.image = ML_image;
+            // reset
+            ML_min = std::numeric_limits<double>::max();// 減肉の最小な値
+            ML_min_S = "";
+            ML_image = cv::Mat::zeros(640, 480, CV_8UC1);// 減肉の最小時の画像
         }
         else {
             if(topic_name == V_stateOP_btn_name){
@@ -438,14 +445,15 @@ cv::Mat MisoraGUI::setup(){
         buttons_.push_back(btn); // ボタンをリストに追加
         canvas.drawButton_new(btn, buttons_name_[i], cv::Scalar(255, 255, 255), -1, cv::LINE_8, 0.78, cv::Scalar(0,0,0), 1);
     }
-    bool isCompact = (param == "P1" || param == "P2" || param == "P4" || param == "P6");
+    bool isCompact = (param == "P1" || param == "P2" || param == "P3" || param == "P4" || param == "P6");
     int boxHeight = isCompact ? btn_height / 2 : btn_height;
     int gap = isCompact ? 8 : 10;
     int step = isCompact ? (btn_height - 10) : (btn_height - 5);
 
     std::vector<std::string> labels;
     if (isCompact) {
-        labels = {"ID: None", "Area ID: None", "Value: None"};
+        if (param == "P3") labels = {"ID: None", "Temp Value: None", "Value: None"};
+        else labels = {"ID: None", "Area ID: None", "Value: None"};
     } else {
         labels = {"ID: None", "Value: None"};
     }
@@ -497,6 +505,10 @@ void MisoraGUI::rewriteMessage(){
     if (param == "P1" || param == "P2" || param == "P4" || param == "P6") {
         if (!areaID.empty()) text_list.push_back("Area ID: " + areaID);
         else text_list.push_back("Area ID: None");
+    }
+    if (param == "P3"){
+        if (!ML_min_S.empty()) text_list.push_back("Temp Value: " + ML_min_S);
+        else text_list.push_back("Temp Value: None");
     }
 
     // Value or Other
