@@ -101,6 +101,11 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
             if(!msg.empty()){
                 // ML_temp_image = cv_bridge::toCvCopy(msg, msg->encoding)->image;
                 ML_temp_image = msg.clone();
+                ml_image_flag = true;
+            }
+            else {
+                ml_image_flag = false;
+                RCLCPP_ERROR(this->get_logger(), "Receive empty metal loss image from MISORA2");
             }
         });
     // tf2関連 ----------------------------------------------------------------------------------------
@@ -148,6 +153,7 @@ void MisoraGUI::timer_callback() {
     rewriteMessage();
     if(not(mat.empty()))publish_gui_->publish(mat);
     if(!misora_image_flag) RCLCPP_ERROR(this->get_logger(), "Don't Receive image from MISORA2");
+    if(!ml_image_flag) RCLCPP_ERROR(this->get_logger(), "Don't Receive metal loss image from MISORA2");
 }
 
 // ボタンごとの信号処理--------------------------------------------------------------------------------------------------------------------------------------------------------

@@ -86,6 +86,7 @@ public:
     bool latest_qr = false;
     // MISORAからの画像が飛んできたか否か----------------------------
     bool misora_image_flag = false;
+    bool ml_image_flag = false;
 
     // デバッグ用画像保存先
     std::string dir = "/home/misora2/misora2_ws/src/misora2_operation/data/";
