@@ -67,16 +67,32 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
     } 
 
     // MISORAから未加工な画像(pressureなどが処理に掛ける画像)　disaster_reportやdebris_removalのため
-    receive_raw_image_ = this->create_subscription<MyAdaptedType>("raw_image",10,
-        [this](const cv::Mat& msg){
-            if(!msg.empty()){
-                // temporary_image = cv_bridge::toCvCopy(msg, msg->encoding)->image;
-                temporary_image = msg.clone();
+    receive_raw_image_ = this->create_subscription<sensor_msgs::msg::CompressedImage>("raw_image",10,
+        [this](const sensor_msgs::msg::CompressedImage::SharedPtr msg){
+            try
+            {
+                cv::Mat data_mat(msg->data, true);
+                if (msg->format.rfind("mono8", 0) == 0)  // mono8
+                {
+                    temporary_image = cv::imdecode(data_mat, cv::IMREAD_GRAYSCALE);
+                }
+                else if (msg->format.rfind("rgb8", 0) == 0)  // rgb8
+                {
+                    temporary_image = cv::imdecode(data_mat, cv::IMREAD_COLOR);
+                    cv::cvtColor(temporary_image, temporary_image, cv::COLOR_BGR2RGB);
+                }
+                else if (msg->format.rfind("bgr8", 0) == 0)  // bgr8
+                {
+                    temporary_image = cv::imdecode(data_mat, cv::IMREAD_COLOR);
+                }
+
                 misora_image_flag = true;
+                RCLCPP_INFO_STREAM(this->get_logger(),"Receive Image from MISORA2");
             }
-            else {
+            catch (const cv::Exception &e)
+            {
+                RCLCPP_ERROR(this->get_logger(), "Could not decode image: %s", e.what());
                 misora_image_flag = false;
-                RCLCPP_ERROR(this->get_logger(), "Receive image empty from MISORA2");
             }
         });
     // 減肉用画像を常に受け取り更新する
