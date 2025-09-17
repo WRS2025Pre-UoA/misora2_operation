@@ -397,14 +397,9 @@ void MisoraGUI::pos_pub_callback(){
     // RCLCPP_INFO_STREAM(this->get_logger(), "Published pos_data");
 }
 void MisoraGUI::data_pub_callback(){
-    if(!qr_data.id.empty() && !result_data.data.empty()){
+    if(!qr_data.id.empty() && !result_data.data.empty() && !result_data.image.empty()){
         send_data(qr_data.id, result_data.data, result_data.image);
-        // digital_data.id = qr_data.id;
-        // digital_data.result = result_data.data;
-        // digital_data.result_image = *(cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", result_data.image).toImageMsg());
-        // digital_data.raw_image = *(cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", result_data.raw_image).toImageMsg());
-        // digital_data.qr_image = *(cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", qr_data.image).toImageMsg());
-        // dt_data_publisher_->publish(digital_data);
+        RCLCPP_INFO_STREAM(this->get_logger(), "Prepare data ID: " << qr_data.id << ", Value: " << result_data.data << ", Image: " << result_data.image.cols << "x" << result_data.image.rows << "x" << result_data.image.channels());
         // 送信したらデータをクリア
         qr_data.id.clear();
         qr_data.image.release();
@@ -413,7 +408,7 @@ void MisoraGUI::data_pub_callback(){
         result_data.image.release();
         result_data.raw_image.release();
     }
-    // RCLCPP_INFO_STREAM(this->get_logger(), "Published pos_data");
+    RCLCPP_INFO_STREAM(this->get_logger(), "Faile Send something error");
 }
 
 void MisoraGUI::send_data(std::string str1, std::string str2, cv::Mat& img1){
