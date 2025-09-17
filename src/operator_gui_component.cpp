@@ -408,7 +408,7 @@ void MisoraGUI::data_pub_callback(){
         result_data.image.release();
         result_data.raw_image.release();
     }
-    RCLCPP_INFO_STREAM(this->get_logger(), "Faile Send something error");
+    // RCLCPP_INFO_STREAM(this->get_logger(), "Faile Send something error");
 }
 
 void MisoraGUI::send_data(std::string str1, std::string str2, cv::Mat& img1){
