@@ -96,27 +96,6 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
                     cv::cvtColor(temporary_image, temporary_image, cv::COLOR_BGR2RGB);
                     cv::cvtColor(temporary_image, temporary_image, cv::COLOR_RGB2BGR);
                 }
-                // RCLCPP_INFO_STREAM(get_logger(), "Compressed data size: " << data_mat.total());
-                // cv::Mat decoded_img = cv::imdecode(data_mat, cv::IMREAD_COLOR);
-                // if (decoded_img.empty()) {
-                // RCLCPP_ERROR(get_logger(), "Failed to decode compressed image.");
-                // return;
-                // }
-                // temporary_image = decoded_img;
-                // if (msg->format.rfind("mono8", 0) == 0)  // mono8
-                // {
-                //     temporary_image = cv::imdecode(data_mat, cv::IMREAD_GRAYSCALE);
-                // }
-                // else if (msg->format.rfind("rgb8", 0) == 0)  // rgb8
-                // {
-                //     temporary_image = cv::imdecode(data_mat, cv::IMREAD_COLOR);
-                //     cv::cvtColor(temporary_image, temporary_image, cv::COLOR_BGR2RGB);
-                // }
-                // else if (msg->format.rfind("bgr8", 0) == 0)  // bgr8
-                // {
-                //     temporary_image = cv::imdecode(data_mat, cv::IMREAD_COLOR);
-                // }
-                // RCLCPP_INFO_STREAM(this->get_logger(), "Receive Image: " << temporary_image.cols << "x" << temporary_image.rows);
                 misora_image_flag = true;
                 // RCLCPP_INFO_STREAM(this->get_logger(),"Receive Image from MISORA2");
             }
