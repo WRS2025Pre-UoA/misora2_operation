@@ -116,7 +116,7 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
                 // {
                 //     temporary_image = cv::imdecode(data_mat, cv::IMREAD_COLOR);
                 // }
-                RCLCPP_INFO_STREAM(this->get_logger(), "Receive Image: " << temporary_image.cols << "x" << temporary_image.rows);
+                // RCLCPP_INFO_STREAM(this->get_logger(), "Receive Image: " << temporary_image.cols << "x" << temporary_image.rows);
                 misora_image_flag = true;
                 // RCLCPP_INFO_STREAM(this->get_logger(),"Receive Image from MISORA2");
             }
@@ -249,7 +249,7 @@ void MisoraGUI::process(std::string topic_name) {
                 result_data.raw_image.release();
             }
         }
-        RCLCPP_INFO_STREAM(this->get_logger(), "Prepared data: " << result_data.data);
+        // RCLCPP_INFO_STREAM(this->get_logger(), "Prepared data: " << result_data.data);
         latest_topic = topic_name;
         // rewriteMessage();
     }
@@ -282,7 +282,7 @@ void MisoraGUI::mouse_click_callback(const geometry_msgs::msg::Point::SharedPtr 
                 );
                 
                 publish_gui_->publish(mat);
-                RCLCPP_INFO_STREAM(this->get_logger(),"Push button when received image");
+                // RCLCPP_INFO_STREAM(this->get_logger(),"Push button when received image");
             }
             else {
                 cv::Mat no_image = cv::Mat::zeros(height,width,CV_8UC3);
