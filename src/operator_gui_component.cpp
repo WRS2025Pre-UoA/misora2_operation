@@ -75,21 +75,26 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
                 if (msg->format.rfind("mono8", 0) == 0)  // mono8
                 {
                     temporary_image = cv::imdecode(data_mat, cv::IMREAD_GRAYSCALE);
+                    RCLCPP_INFO_STREAM(this->get_logger() ,"imdecode: mono8");
                 }
                 else if (msg->format.rfind("rgb8", 0) == 0)  // rgb8
                 {
                     temporary_image = cv::imdecode(data_mat, cv::IMREAD_COLOR);
                     cv::cvtColor(temporary_image, temporary_image, cv::COLOR_BGR2RGB);
+                    cv::cvtColor(temporary_image, temporary_image, cv::COLOR_RGB2BGR);
+                    RCLCPP_INFO_STREAM(this->get_logger() ,"imdecode: rgb8");
                 }
                 else if (msg->format.rfind("bgr8", 0) == 0)  // bgr8
                 {
                     temporary_image = cv::imdecode(data_mat, cv::IMREAD_COLOR);
+                    RCLCPP_INFO_STREAM(this->get_logger() ,"imdecode: bgr8");
                 }
                 else
                 {
                     RCLCPP_WARN(this->get_logger(), "Unsupported format in CompressedImage: %s", msg->format.c_str());
                     temporary_image = cv::imdecode(data_mat, cv::IMREAD_COLOR);  // ひとまずカラーで読み込み
                     cv::cvtColor(temporary_image, temporary_image, cv::COLOR_BGR2RGB);
+                    cv::cvtColor(temporary_image, temporary_image, cv::COLOR_RGB2BGR);
                 }
                 // RCLCPP_INFO_STREAM(get_logger(), "Compressed data size: " << data_mat.total());
                 // cv::Mat decoded_img = cv::imdecode(data_mat, cv::IMREAD_COLOR);
@@ -232,8 +237,11 @@ void MisoraGUI::process(std::string topic_name) {
                 else if(topic_name == debrisN_btn_name)result_data.data = "NORMAL";
                 else if(topic_name == missing_btn_name)result_data.data = "VICTIM";
 
+                std::string f = dir+"test.png";
+                cv::Mat temp = temporary_image.clone();
+                cv::imwrite(f,temp);
                 // std::string areaID = input_func("Input Area ID [AR01 ~ AR36]");
-                RCLCPP_INFO_STREAM(this->get_logger(),"Prepare data: areaID: " << areaID << ", result_data: " << result_data.data << ", Image Size: " << temporary_image.cols << "x" << temporary_image.rows << "x" <<temporary_image.channels() );
+                RCLCPP_INFO_STREAM(this->get_logger(),"Prepare data: areaID: " << areaID << ", result_data: " << result_data.data << ", Image Size: " << temp.cols << "x" << temp.rows << "x" <<temp.channels() );
                 send_data(areaID, result_data.data, temporary_image);
 
                 result_data.data.clear();
