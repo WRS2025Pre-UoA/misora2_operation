@@ -233,7 +233,7 @@ void MisoraGUI::process(std::string topic_name) {
                 else if(topic_name == missing_btn_name)result_data.data = "VICTIM";
 
                 // std::string areaID = input_func("Input Area ID [AR01 ~ AR36]");
-                RCLCPP_INFO_STREAM(this->get_logger(),"Prepare data: areaID: " << areaID << ", result_data: " << result_data.data << ", Image Size: " << result_data.image.cols << "x" << result_data.image.rows << "x" << result_data.image.channels() );
+                RCLCPP_INFO_STREAM(this->get_logger(),"Prepare data: areaID: " << areaID << ", result_data: " << result_data.data << ", Image Size: " << temporary_image.cols << "x" << temporary_image.rows << "x" <<temporary_image.channels() );
                 send_data(areaID, result_data.data, temporary_image);
 
                 result_data.data.clear();
