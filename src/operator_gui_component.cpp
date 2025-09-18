@@ -85,7 +85,33 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
                 {
                     temporary_image = cv::imdecode(data_mat, cv::IMREAD_COLOR);
                 }
-
+                else
+                {
+                    RCLCPP_WARN(this->get_logger(), "Unsupported format in CompressedImage: %s", msg->format.c_str());
+                    temporary_image = cv::imdecode(data_mat, cv::IMREAD_COLOR);  // ひとまずカラーで読み込み
+                    cv::cvtColor(temporary_image, temporary_image, cv::COLOR_BGR2RGB);
+                }
+                // RCLCPP_INFO_STREAM(get_logger(), "Compressed data size: " << data_mat.total());
+                // cv::Mat decoded_img = cv::imdecode(data_mat, cv::IMREAD_COLOR);
+                // if (decoded_img.empty()) {
+                // RCLCPP_ERROR(get_logger(), "Failed to decode compressed image.");
+                // return;
+                // }
+                // temporary_image = decoded_img;
+                // if (msg->format.rfind("mono8", 0) == 0)  // mono8
+                // {
+                //     temporary_image = cv::imdecode(data_mat, cv::IMREAD_GRAYSCALE);
+                // }
+                // else if (msg->format.rfind("rgb8", 0) == 0)  // rgb8
+                // {
+                //     temporary_image = cv::imdecode(data_mat, cv::IMREAD_COLOR);
+                //     cv::cvtColor(temporary_image, temporary_image, cv::COLOR_BGR2RGB);
+                // }
+                // else if (msg->format.rfind("bgr8", 0) == 0)  // bgr8
+                // {
+                //     temporary_image = cv::imdecode(data_mat, cv::IMREAD_COLOR);
+                // }
+                RCLCPP_INFO_STREAM(this->get_logger(), "Receive Image: " << temporary_image.cols << "x" << temporary_image.rows);
                 misora_image_flag = true;
                 // RCLCPP_INFO_STREAM(this->get_logger(),"Receive Image from MISORA2");
             }
@@ -96,11 +122,13 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
             }
         });
     // 減肉用画像を常に受け取り更新する
-    received_image_metal_ = this->create_subscription<MyAdaptedType>("raw_image_metal",10,
-        [this](const cv::Mat& msg){
-            if(!msg.empty()){
+    received_image_metal_ = this->create_subscription<sensor_msgs::msg::Image>("raw_image_metal",10,
+        [this](const sensor_msgs::msg::Image::SharedPtr msg){
+            if(msg->encoding == "yuv422_yuy2"){
+                // YUY2は2chのYUY並びで1ピクセル2バイト
+                cv::Mat yuy2_img(msg->height, msg->width, CV_8UC2, (void*)msg->data.data());
                 // ML_temp_image = cv_bridge::toCvCopy(msg, msg->encoding)->image;
-                ML_temp_image = msg.clone();
+                cv::cvtColor(yuy2_img, ML_temp_image, cv::COLOR_YUV2BGR_YUY2);
                 ml_image_flag = true;
             }
             else {
@@ -109,9 +137,9 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
             }
         });
     // tf2関連 ----------------------------------------------------------------------------------------
-    pos_data.x = 0.0f;
-    pos_data.y = 0.0f;
-    pos_data.z = 0.0f;
+    pos_data.x = 0.05f;
+    pos_data.y = 0.05f;
+    pos_data.z = 0.05f;
     pos_data.roll = 0.0f;
     pos_data.pitch = 0.0f;
     pos_data.yaw = 0.0f;
@@ -205,7 +233,9 @@ void MisoraGUI::process(std::string topic_name) {
                 else if(topic_name == missing_btn_name)result_data.data = "VICTIM";
 
                 // std::string areaID = input_func("Input Area ID [AR01 ~ AR36]");
+                RCLCPP_INFO_STREAM(this->get_logger(),"Prepare data: areaID: " << areaID << ", result_data: " << result_data.data << ", Image Size: " << result_data.image.cols << "x" << result_data.image.rows << "x" << result_data.image.channels() );
                 send_data(areaID, result_data.data, temporary_image);
+
                 result_data.data.clear();
                 result_data.image.release();
                 result_data.raw_image.release();

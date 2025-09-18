@@ -101,6 +101,7 @@ public:
         std::string data; // 検出結果
         cv::Mat image; // 検出時の画像
         cv::Mat raw_image; //　プログラム修正用の画像
+        // std::string image_type; // rosメッセージに変換の際に使用 bgr8 rgb8 mono8 yuv422-yuy2
     }result_data;
     cv::Mat temporary_image; // MISORAから送信されてくる生画像
     // ボタンの条件分岐で使うリスト------------------------------------------------------
@@ -153,7 +154,7 @@ private:
     std::map<std::string, rclcpp::Subscription<misora2_custom_msg::msg::Custom>::SharedPtr> receive_results_;// 検出画像をうけとる
 
     rclcpp::Subscription<sensor_msgs::msg::CompressedImage>::SharedPtr receive_raw_image_;// MISORAから来る生画像
-    rclcpp::Subscription<MyAdaptedType>::SharedPtr received_image_metal_;// misoraからの減肉画像を受け取る
+    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr received_image_metal_;// misoraからの減肉画像を受け取る
     // デジタルツイン関連----------------------------------------------------------------------------------------
     rclcpp::Publisher<misora2_custom_msg::msg::Digital>::SharedPtr dt_data_publisher_;// デジタルツイン報告ノードへ送る
     rclcpp::TimerBase::SharedPtr data_pub_;
