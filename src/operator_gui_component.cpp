@@ -453,7 +453,8 @@ void MisoraGUI::send_data(std::string str1, std::string str2, cv::Mat& img1){
     misora2_custom_msg::msg::Digital digital_data;
     digital_data.id = str1;
     digital_data.result = str2;
-    digital_data.image = *(cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", img1).toImageMsg());
+    if(img1.channels() == 3) digital_data.image = *(cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", img1).toImageMsg());
+    else digital_data.image = *(cv_bridge::CvImage(std_msgs::msg::Header(), "mono8", img1).toImageMsg());    
     dt_data_publisher_->publish(digital_data);
 }
 
