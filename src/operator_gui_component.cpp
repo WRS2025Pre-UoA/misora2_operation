@@ -54,8 +54,9 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
                     else {
                         latest_topic = topic;
                         result_data.data = msg->result;
-                        result_data.image = cv_bridge::toCvCopy(msg->image, msg->image.encoding)->image;
-                        result_data.raw_image = cv_bridge::toCvCopy(msg->raw_image, msg->raw_image.encoding)->image;
+                        RCLCPP_INFO_STREAM(this->get_logger(),"Receive image: " << msg->image.encoding << ", raw: " << msg->raw_image.encoding);
+                        result_data.image = cv_bridge::toCvCopy(msg->image, "bgr8")->image;
+                        result_data.raw_image = cv_bridge::toCvCopy(msg->raw_image, "bgr8")->image;
                         save_img(topic, result_data.raw_image);
                     }
                 });// 受け取り時の処理
