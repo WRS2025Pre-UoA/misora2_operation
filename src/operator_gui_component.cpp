@@ -180,6 +180,7 @@ void MisoraGUI::process(std::string topic_name) {
     else if(topic_name == metal_loss_btn_name){
         std::string t = input_func("Input Metal loss value [mm: 0.0-9.0]");
         if(ML_max <= (9.0 - std::stod(t))){ // 9.0[mm]の板からx[mm]切り抜かれている 残りの厚さがt[mm]のとき x = 9.0 - t
+            
             ML_max = (9.0 - std::stod(t));
             std::ostringstream oss;
             oss << std::fixed << std::setprecision(3) << ML_max;
