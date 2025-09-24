@@ -45,11 +45,13 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
                 receive_results_[topic] = this->create_subscription<misora2_custom_msg::msg::Custom>(topic+"_results", 10,
                     [this, topic](const misora2_custom_msg::msg::Custom::SharedPtr msg){
                     if(topic == "qr") {
-                        latest_qr = true;
-                        qr_data.id = msg->result;
-                        qr_data.image = cv_bridge::toCvCopy(msg->image, msg->image.encoding)->image;
-                        std::string filename = dir + "QR_"+qr_data.id+".png";
-                        cv::imwrite(filename, qr_data.image);
+                        if(!result_data.data.empty()){
+                            latest_qr = true;
+                            qr_data.id = msg->result;
+                            qr_data.image = cv_bridge::toCvCopy(msg->image, msg->image.encoding)->image;
+                            std::string filename = dir + "QR_"+qr_data.id+".png";
+                            cv::imwrite(filename, qr_data.image);
+                        }
                     }
                     else {
                         latest_topic = topic;
@@ -172,10 +174,14 @@ void MisoraGUI::timer_callback() {
 // ボタンごとの信号処理--------------------------------------------------------------------------------------------------------------------------------------------------------
 void MisoraGUI::process(std::string topic_name) {
     if(std::find(trigger_list.begin(), trigger_list.end(), topic_name) != trigger_list.end()){ //被災者の顔写真を送るのか、QRのデコードならいらないかも
-        std_msgs::msg::String msg_topic;
-        msg_topic.data = topic_name;
-        // RCLCPP_INFO_STREAM(this->get_logger(),"Prepare bool message to " << topic_name+"_trigger" << " " << msg_b.data);
-        triggers_->publish(msg_topic);
+        if(result_data.data.empty() and topic_name == "qr"){
+            RCLCPP_WARN(this->get_logger(),"Not receive value so, Do not send QR Signal");
+        }else{
+            std_msgs::msg::String msg_topic;
+            msg_topic.data = topic_name;
+            // RCLCPP_INFO_STREAM(this->get_logger(),"Prepare bool message to " << topic_name+"_trigger" << " " << msg_b.data);
+            triggers_->publish(msg_topic);
+        }
     }
     else if(topic_name == metal_loss_btn_name){
         std::string t = input_func("Input Metal loss value [mm: 0.0-9.0]");
