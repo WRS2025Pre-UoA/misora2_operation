@@ -226,12 +226,17 @@ void MisoraGUI::process(std::string topic_name) {
                 else if(topic_name == debrisN_btn_name)result_data.data = "NORMAL";
                 else if(topic_name == missing_btn_name)result_data.data = "VICTIM";
 
-                std::string f = dir+"test.png";
+                
                 cv::Mat temp = temporary_image.clone();
-                cv::imwrite(f,temp);
-                // std::string areaID = input_func("Input Area ID [AR01 ~ AR36]");
-                RCLCPP_INFO_STREAM(this->get_logger(),"Prepare data: areaID: " << areaID << ", result_data: " << result_data.data << ", Image Size: " << temp.cols << "x" << temp.rows << "x" <<temp.channels() );
-                send_data(areaID, result_data.data, temporary_image);
+                if (area_mode == "1"){
+                    std::string areaID_m = "AR"+input_func("Input Area ID [AR{01 ~ 36}]");
+                    RCLCPP_INFO_STREAM(this->get_logger(),"Prepare data: areaID: " << areaID_m << ", result_data: " << result_data.data << ", Image Size: " << temp.cols << "x" << temp.rows << "x" <<temp.channels() );
+                    send_data(areaID_m, result_data.data, temp);
+                }else if(area_mode == "2"){
+                    RCLCPP_INFO_STREAM(this->get_logger(),"Prepare data: areaID: " << areaID << ", result_data: " << result_data.data << ", Image Size: " << temp.cols << "x" << temp.rows << "x" <<temp.channels() );
+                    send_data(areaID, result_data.data, temp);
+                }
+                
 
                 result_data.data.clear();
                 result_data.image.release();
@@ -330,9 +335,6 @@ std::string MisoraGUI::input_func(std::string show_message){
             if (key != '.' || text.find('.') == std::string::npos) {
                 text += static_cast<char>(key);
             }
-        }
-        if (key >= 'a' && key <= 'z'){
-            text += std::toupper(static_cast<char>(key));
         }
         // バックスペース対応（必要なら）
         else if (key == 8 && !text.empty()) {

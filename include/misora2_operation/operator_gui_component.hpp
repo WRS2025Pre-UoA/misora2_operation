@@ -88,6 +88,9 @@ public:
     bool misora_image_flag = false;
     bool ml_image_flag = false;
 
+    // エリアIDを手入力か自己位置から入力するかのモード
+    std::string area_mode = "1"; // 1：手入力　2：自己位置から推測
+
     // デバッグ用画像保存先
     std::string dir = "/home/misora2/misora2_ws/src/misora2_operation/data/";
     // std::string dir = "/home/ros/wrs2025/src/misora2_operation/data/";
