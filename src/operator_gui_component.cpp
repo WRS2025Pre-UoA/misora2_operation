@@ -108,21 +108,23 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
                 misora_image_flag = false;
             }
         });
-    // 減肉用画像を常に受け取り更新する
-    received_image_metal_ = this->create_subscription<sensor_msgs::msg::Image>("raw_image_metal",10,
-        [this](const sensor_msgs::msg::Image::SharedPtr msg){
-            if(msg->encoding == "yuv422_yuy2"){
-                // YUY2は2chのYUY並びで1ピクセル2バイト
-                cv::Mat yuy2_img(msg->height, msg->width, CV_8UC2, (void*)msg->data.data());
-                // ML_temp_image = cv_bridge::toCvCopy(msg, msg->encoding)->image;
-                cv::cvtColor(yuy2_img, ML_temp_image, cv::COLOR_YUV2BGR_YUY2);
-                ml_image_flag = true;
-            }
-            else {
-                ml_image_flag = false;
-                RCLCPP_ERROR(this->get_logger(), "Receive empty metal loss image from MISORA2");
-            }
-        });
+    if(param == "P3"){
+        // 減肉用画像を常に受け取り更新する
+        received_image_metal_ = this->create_subscription<sensor_msgs::msg::Image>("raw_image_metal",10,
+            [this](const sensor_msgs::msg::Image::SharedPtr msg){
+                if(msg->encoding == "yuv422_yuy2"){
+                    // YUY2は2chのYUY並びで1ピクセル2バイト
+                    cv::Mat yuy2_img(msg->height, msg->width, CV_8UC2, (void*)msg->data.data());
+                    // ML_temp_image = cv_bridge::toCvCopy(msg, msg->encoding)->image;
+                    cv::cvtColor(yuy2_img, ML_temp_image, cv::COLOR_YUV2BGR_YUY2);
+                    ml_image_flag = true;
+                }
+                else {
+                    ml_image_flag = false;
+                    RCLCPP_ERROR(this->get_logger(), "Receive empty metal loss image from MISORA2");
+                }
+            });
+        }
     // tf2関連 ----------------------------------------------------------------------------------------
     pos_data.x = 0.05f;
     pos_data.y = 0.05f;
@@ -168,7 +170,7 @@ void MisoraGUI::timer_callback() {
     rewriteMessage();
     if(not(mat.empty()))publish_gui_->publish(mat);
     if(!misora_image_flag) RCLCPP_ERROR(this->get_logger(), "Don't Receive image from MISORA2");
-    if(!ml_image_flag) RCLCPP_ERROR(this->get_logger(), "Don't Receive metal loss image from MISORA2");
+    if(!ml_image_flag and param == "P3") RCLCPP_ERROR(this->get_logger(), "Don't Receive metal loss image from MISORA2");
 }
 
 // ボタンごとの信号処理--------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -209,15 +211,28 @@ void MisoraGUI::process(std::string topic_name) {
         }
         else {
             if(topic_name == V_stateOP_btn_name){
-                result_data.data = "OPEN";
+                result_data.data = "1"; // OPEN-> 1
                 result_data.image = temporary_image.clone();
             }
             else if(topic_name == V_stateCL_btn_name){
-                result_data.data = "CLOSE";
+                result_data.data = "0"; // CLOSE-> 0
                 result_data.image = temporary_image.clone();
             }
             else if(topic_name == V_maneuve_btn_name){
-                result_data.data = "100";
+                if(valve_mode == "1"){
+                    std::string valve_type = input_func("Input valve type [1: 90, 2: 180]");
+                    std::string message = (valve_type=="1") ? "Input rotation angle [0-90]" : "Input rotation angle [0-180]";
+                    std::string rotation_angle_S = input_func(message);
+                    double rotation_angle = std::stod(rotation_angle_S);
+                    double valve_result;
+                    if(valve_type == "1") valve_result = rotation_angle / 90.0 * 100;
+                    else if(valve_type == "2") valve_result = rotation_angle / 180.0 * 100;
+                    std::ostringstream oss;
+                    oss << std::fixed << std::setprecision(3) << valve_result;
+                    result_data.data = oss.str();
+
+                }else if(valve_mode == "2") result_data.data = "100"; // 回しきる前提
+
                 result_data.image = temporary_image.clone();
             }
             else{
@@ -335,6 +350,9 @@ std::string MisoraGUI::input_func(std::string show_message){
             if (key != '.' || text.find('.') == std::string::npos) {
                 text += static_cast<char>(key);
             }
+        }
+        if (key >= 'a' && key <= 'z'){
+            text += std::toupper(static_cast<char>(key));
         }
         // バックスペース対応（必要なら）
         else if (key == 8 && !text.empty()) {
