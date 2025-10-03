@@ -31,9 +31,9 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
         {"P1", {pressure_btn_name, qr_btn_name, V_maneuve_btn_name}},
         {"P2", {pressure_btn_name, qr_btn_name, V_maneuve_btn_name, V_stateOP_btn_name, V_stateCL_btn_name}},
         {"P3", {cracks_btn_name, qr_btn_name, metal_loss_btn_name, metal_loss_send_btn_name}},
-        {"P4", {qr_btn_name, debrisN_btn_name, debrisD_btn_name, debrisC_btn_name, V_maneuve_btn_name}},
+        {"P4", {qr_btn_name, IR_btn_name, CD_btn_name, V_maneuve_btn_name}},
         {"P5", {qr_btn_name}},
-        {"P6", {pressure_btn_name, qr_btn_name, debrisN_btn_name, debrisD_btn_name, debrisC_btn_name,missing_btn_name}}
+        {"P6", {pressure_btn_name, qr_btn_name, IR_btn_name, CD_btn_name, VIR_btn_name}}
     };
 
     triggers_ = this->create_publisher<std_msgs::msg::String>("triggers", 10);
@@ -108,23 +108,23 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
                 misora_image_flag = false;
             }
         });
-    if(param == "P3"){
-        // 減肉用画像を常に受け取り更新する
-        received_image_metal_ = this->create_subscription<sensor_msgs::msg::Image>("raw_image_metal",10,
-            [this](const sensor_msgs::msg::Image::SharedPtr msg){
-                if(msg->encoding == "yuv422_yuy2"){
-                    // YUY2は2chのYUY並びで1ピクセル2バイト
-                    cv::Mat yuy2_img(msg->height, msg->width, CV_8UC2, (void*)msg->data.data());
-                    // ML_temp_image = cv_bridge::toCvCopy(msg, msg->encoding)->image;
-                    cv::cvtColor(yuy2_img, ML_temp_image, cv::COLOR_YUV2BGR_YUY2);
-                    ml_image_flag = true;
-                }
-                else {
-                    ml_image_flag = false;
-                    RCLCPP_ERROR(this->get_logger(), "Receive empty metal loss image from MISORA2");
-                }
-            });
-        }
+    // if(param == "P3"){
+    //     // 減肉用画像を常に受け取り更新する
+    //     received_image_metal_ = this->create_subscription<sensor_msgs::msg::Image>("raw_image_metal",10,
+    //         [this](const sensor_msgs::msg::Image::SharedPtr msg){
+    //             if(msg->encoding == "yuv422_yuy2"){
+    //                 // YUY2は2chのYUY並びで1ピクセル2バイト
+    //                 cv::Mat yuy2_img(msg->height, msg->width, CV_8UC2, (void*)msg->data.data());
+    //                 // ML_temp_image = cv_bridge::toCvCopy(msg, msg->encoding)->image;
+    //                 cv::cvtColor(yuy2_img, ML_temp_image, cv::COLOR_YUV2BGR_YUY2);
+    //                 ml_image_flag = true;
+    //             }
+    //             else {
+    //                 ml_image_flag = false;
+    //                 RCLCPP_ERROR(this->get_logger(), "Receive empty metal loss image from MISORA2");
+    //             }
+    //         });
+    //     }
     // tf2関連 ----------------------------------------------------------------------------------------
     pos_data.x = 0.05f;
     pos_data.y = 0.05f;
@@ -170,7 +170,7 @@ void MisoraGUI::timer_callback() {
     rewriteMessage();
     if(not(mat.empty()))publish_gui_->publish(mat);
     if(!misora_image_flag) RCLCPP_ERROR(this->get_logger(), "Don't Receive image from MISORA2");
-    if(!ml_image_flag and param == "P3") RCLCPP_ERROR(this->get_logger(), "Don't Receive metal loss image from MISORA2");
+    // if(!ml_image_flag and param == "P3") RCLCPP_ERROR(this->get_logger(), "Don't Receive metal loss image from MISORA2");
 }
 
 // ボタンごとの信号処理--------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -195,64 +195,97 @@ void MisoraGUI::process(std::string topic_name) {
             ML_max_S = oss.str();
             // 損失範囲
 
-            ML_image = ML_temp_image.clone();
+            ML_image = zeros_image;
         }
     }
     else { //MISORA PCから送られてきた画像をそのまま流す
         if(topic_name == metal_loss_send_btn_name){
             std::ostringstream oss;
             oss << std::fixed << std::setprecision(3) << ML_max;
-            result_data.data = oss.str();
+            result_data.data = "CORROSION,"+oss.str();
             result_data.image = ML_image;
             // reset
             ML_max = std::numeric_limits<double>::min();// 減肉の最小な値
             ML_max_S = "";
-            ML_image = cv::Mat::zeros(640, 480, CV_8UC1);// 減肉の最小時の画像
+            ML_image = zeros_image;// 減肉の最小時の画像
         }
         else {
             if(topic_name == V_stateOP_btn_name){
                 result_data.data = "1"; // OPEN-> 1
-                result_data.image = temporary_image.clone();
+                result_data.image = zeros_image;
             }
             else if(topic_name == V_stateCL_btn_name){
                 result_data.data = "0"; // CLOSE-> 0
-                result_data.image = temporary_image.clone();
+                result_data.image = zeros_image;
             }
             else if(topic_name == V_maneuve_btn_name){
                 if(valve_mode == "1"){
-                    std::string valve_type = input_func("Input valve type [1: 90, 2: 180]");
-                    std::string message = (valve_type=="1") ? "Input rotation angle [0-90]" : "Input rotation angle [0-180]";
+                    names = {"90", "180"};
+                    rects = create_buttons(names);
+                    // auto userdata = std::make_pair(&names, &rects);
+                    cv::setMouseCallback("Buttons", MisoraGUI::mouse_callback, this);
+                    while(temp_name.empty()) {
+                        cv::waitKey(30);  // 30ms ごとにイベント処理
+                    }
+                    // std::string valve_type = input_func("Input valve type [1: 90, 2: 180]");
+                    std::string message = (temp_name == "90") ? "Input rotation angle [0-90]" : "Input rotation angle [0-180]";
                     std::string rotation_angle_S = input_func(message);
                     double rotation_angle = std::stod(rotation_angle_S);
                     double valve_result;
-                    if(valve_type == "1") valve_result = rotation_angle / 90.0 * 100;
-                    else if(valve_type == "2") valve_result = rotation_angle / 180.0 * 100;
+                    if(temp_name == "90") valve_result = rotation_angle / 90.0 * 100;
+                    else if(temp_name == "180") valve_result = rotation_angle / 180.0 * 100;
                     std::ostringstream oss;
                     oss << std::fixed << std::setprecision(3) << valve_result;
                     result_data.data = oss.str();
-
+                    temp_name = "";
+                    names.clear();
+                    rects.clear();
                 }else if(valve_mode == "2") result_data.data = "100"; // 回しきる前提
 
-                result_data.image = temporary_image.clone();
+                result_data.image = zeros_image;
             }
             else{
-                if(topic_name == debrisC_btn_name)result_data.data = "CLEARED";
-                else if(topic_name == debrisD_btn_name)result_data.data = "DEBRIS";
-                else if(topic_name == debrisN_btn_name)result_data.data = "NORMAL";
-                else if(topic_name == missing_btn_name)result_data.data = "VICTIM";
-
-                
+                // まずエリアIDの入力
                 cv::Mat temp = temporary_image.clone();
+                std::string areaID_m;
                 if (area_mode == "1"){
-                    std::string areaID_m = "AR"+input_func("Input Area ID [AR{01 ~ 36}]");
-                    RCLCPP_INFO_STREAM(this->get_logger(),"Prepare data: areaID: " << areaID_m << ", result_data: " << result_data.data << ", Image Size: " << temp.cols << "x" << temp.rows << "x" <<temp.channels() );
-                    send_data(areaID_m, result_data.data, temp);
-                }else if(area_mode == "2"){
-                    RCLCPP_INFO_STREAM(this->get_logger(),"Prepare data: areaID: " << areaID << ", result_data: " << result_data.data << ", Image Size: " << temp.cols << "x" << temp.rows << "x" <<temp.channels() );
-                    send_data(areaID, result_data.data, temp);
+                    areaID_m = "AR"+input_func("Input Area ID [AR{01 ~ 36}]");
+                    
+                    // RCLCPP_INFO_STREAM(this->get_logger(),"Prepare data: areaID: " << areaID_m << ", result_data: " << result_data.data << ", Image Size: " << temp.cols << "x" << temp.rows << "x" <<temp.channels() );
+                    // send_data(areaID_m, result_data.data, temp);
                 }
+                std::string areaID_Decide;
+                if(topic_name == CD_btn_name){
+                    result_data.data = "1";
+                    areaID_m = "CD-"+areaID_m;
+                    areaID_Decide = "CD-"+areaID;
+                }
+                else{
+                    if(topic_name == IR_btn_name){
+                        names = {"NORMAL", "DEBRIS"};
+                        areaID_m = "IR-"+areaID_m;
+                        areaID_Decide = "IR-"+areaID;
+                    }
+                    else if(topic_name == VIR_btn_name){
+                        names = {"NORMAL", "DEBRIS", "VICTIM"};
+                        areaID_m = "VIR-"+areaID_m;
+                        areaID_Decide = "VIR-"+areaID;
+                    }
                 
+                    rects = create_buttons(names);
 
+                    cv::setMouseCallback("Buttons", MisoraGUI::mouse_callback, this);
+                    while(temp_name.empty()) {
+                        cv::waitKey(30);  // 30ms ごとにイベント処理
+                    }
+                    result_data.data = temp_name;
+                }
+                if(area_mode=="1") send_data(areaID_m, result_data.data, temp, topic_name);
+                else if(area_mode == "2")send_data(areaID_Decide, result_data.data, temp, topic_name);
+                
+                names.clear();
+                rects.clear();
+                temp_name="";
                 result_data.data.clear();
                 result_data.image.release();
                 result_data.raw_image.release();
@@ -351,9 +384,9 @@ std::string MisoraGUI::input_func(std::string show_message){
                 text += static_cast<char>(key);
             }
         }
-        if (key >= 'a' && key <= 'z'){
-            text += std::toupper(static_cast<char>(key));
-        }
+        // if (key >= 'a' && key <= 'z'){
+        //     text += std::toupper(static_cast<char>(key));
+        // }
         // バックスペース対応（必要なら）
         else if (key == 8 && !text.empty()) {
             text.pop_back();
@@ -366,6 +399,60 @@ std::string MisoraGUI::input_func(std::string show_message){
         }
     }
     return text;
+}
+// バルブタイプなど選択するボタンウィンドウを作成
+std::vector<cv::Rect> MisoraGUI::create_buttons(std::vector<std::string> names){
+    int btn_height_1 = btn_height*2;
+    int btn_width_1 = btn_width*2;
+    int x_offset_1 = x_offset + 10;
+    int wsize = (x_offset_1 * (static_cast<int>(size(names))+1) + btn_width_1 * static_cast<int>(size(names)));
+    
+    int hsize = (btn_height_1 + 2 * y_offset);
+    
+    cv::Mat background = cv::Mat::zeros(hsize, wsize, CV_8UC3);
+    std::vector<cv::Rect> button_rects;
+
+    for (size_t i = 0; i < names.size(); i++) {
+        int x = x_offset_1 + i * (btn_width_1+x_offset_1);
+        int y = y_offset;
+
+        cv::Rect rect(x, y, btn_width_1, btn_height_1);
+        button_rects.push_back(rect);
+
+        // ボタン背景
+        cv::rectangle(background, rect, cv::Scalar(255, 255, 255), -1);
+        // ボタン枠線
+        cv::rectangle(background, rect, cv::Scalar(0, 0, 0), 2);
+
+        // ボタン文字
+        int baseline = 0;
+        cv::Size textSize = cv::getTextSize(names[i], cv::FONT_HERSHEY_SIMPLEX, 2, 1, &baseline);
+        cv::Point textOrg(
+            x + (btn_width_1 - textSize.width) / 2,
+            y + (btn_height_1 + textSize.height) / 2
+        );
+        cv::putText(background, names[i], textOrg,
+                    cv::FONT_HERSHEY_SIMPLEX, 2, cv::Scalar(0, 0, 0), 2);
+    }
+
+    cv::imshow("Buttons", background);
+    return button_rects;
+}
+// 静的マウスコールバック
+void MisoraGUI::mouse_callback(int event, int x, int y, int, void* userdata) {
+    if (event != cv::EVENT_LBUTTONDOWN) return;
+
+    // userdata を元のクラスにキャスト
+    MisoraGUI* self = reinterpret_cast<MisoraGUI*>(userdata);
+
+    for (size_t i = 0; i < self->rects.size(); i++) {
+        if (self->rects[i].contains(cv::Point(x, y))) {
+            // std::cout << "Clicked: " << self->names[i] << std::endl;
+            cv::destroyWindow("Buttons");
+            self->temp_name = self->names[i];
+            break;
+        }
+    }
 }
 
 // tf2関連--------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -380,21 +467,12 @@ void MisoraGUI::on_timer(){
     }
     // 変換を行えなかった時のための例外処理
     catch (const tf2::TransformException & ex) {
-    //   RCLCPP_INFO(
-    //     this->get_logger(), "Could not transform base_link to dynamic_frame: %s",
-    //     ex.what());
       return;
     }
 
     // 座標変換結果の設定
     auto & trans_xyz = t.transform.translation;
 
-    // int id = search_areaID(trans_xyz.x, trans_xyz.y);
-
-    // std::ostringstream ss;
-    // ss << "AR" << std::setw(2) << std::setfill('0') << id;
-    // areaID = ss.str();
-    // RCLCPP_INFO_STREAM(this->get_logger(), "Current Area ID: " << areaID);
     auto & quat_msg = t.transform.rotation;
     tf2::Quaternion quat(
         quat_msg.x,
@@ -410,9 +488,6 @@ void MisoraGUI::on_timer(){
     pos_data.roll = roll;
     pos_data.pitch = pitch;
     pos_data.yaw = yaw;
-    // 座標変換結果の位置情報の出力
-    // RCLCPP_INFO_STREAM(this->get_logger(), "x,y,z: " << trans_xyz.x << ", " <<  trans_xyz.y << ", " << trans_xyz.z);
-    // RCLCPP_INFO_STREAM(this->get_logger(), "r,p,y: " << roll << ", " << pitch << ", " << yaw);
 }
 
 int MisoraGUI::search_areaID(double x, double y){
@@ -445,7 +520,7 @@ void MisoraGUI::pos_pub_callback(){
 }
 void MisoraGUI::data_pub_callback(){
     if(!qr_data.id.empty() && !result_data.data.empty() && !result_data.image.empty()){
-        send_data(qr_data.id, result_data.data, result_data.image);
+        send_data(qr_data.id, result_data.data, result_data.image, latest_topic);
         RCLCPP_INFO_STREAM(this->get_logger(), "Prepare data ID: " << qr_data.id << ", Value: " << result_data.data << ", Image: " << result_data.image.cols << "x" << result_data.image.rows << "x" << result_data.image.channels());
         // 送信したらデータをクリア
         qr_data.id.clear();
@@ -458,10 +533,11 @@ void MisoraGUI::data_pub_callback(){
     // RCLCPP_INFO_STREAM(this->get_logger(), "Faile Send something error");
 }
 
-void MisoraGUI::send_data(std::string str1, std::string str2, cv::Mat& img1){
+void MisoraGUI::send_data(std::string str1, std::string str2, cv::Mat& img1, std::string str3){
     misora2_custom_msg::msg::Digital digital_data;
     digital_data.id = str1;
     digital_data.result = str2;
+    digital_data.topic = str3;
     if(img1.channels() == 3) digital_data.image = *(cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", img1).toImageMsg());
     else digital_data.image = *(cv_bridge::CvImage(std_msgs::msg::Header(), "mono8", img1).toImageMsg());    
     dt_data_publisher_->publish(digital_data);
@@ -501,7 +577,7 @@ cv::Mat MisoraGUI::setup(){
 
     std::vector<std::string> labels;
     if (isCompact) {
-        if (param == "P3") labels = {"ID: None", "Temp Value: None", "Value: None"};
+        if (param == "P3") labels = {"ID: None", "Temp Value: None", "Value: None", "               "};
         else labels = {"ID: None", "Area ID: None", "Value: None"};
     } else {
         labels = {"ID: None", "Value: None"};
@@ -561,29 +637,50 @@ void MisoraGUI::rewriteMessage(){
     }
 
     // Value or Other
-    if (!result_data.data.empty()) text_list.push_back("Value: " + result_data.data);
-    else text_list.push_back("Other: None");
-
-    // 描画処理
+        // Value or Other
+    if (!result_data.data.empty()) {
+        if (param == "P3") {
+            // ","で分割して2行にする
+            size_t comma_pos = result_data.data.find(',');
+            if (comma_pos != std::string::npos) {
+                std::string part1 = result_data.data.substr(0, comma_pos);
+                std::string part2 = result_data.data.substr(comma_pos + 1);
+                text_list.push_back("Value: " + part1);
+                if(part2.length() < 6)text_list.push_back("       " + part2); // 2行目はインデント
+                else text_list.push_back(" " + part2);
+            } else {
+                text_list.push_back("Value: " + result_data.data);
+            }
+        } else {
+            text_list.push_back("Value: " + result_data.data);
+        }
+    } else {
+        text_list.push_back("Value: None");
+        text_list.push_back("       " ); 
+    }
+     // 描画処理
     for (size_t n = 0; n < text_list.size(); ++n) {
-        // まず黒いボックスで上書き
-        cv::Point sp = cv::Point(another_box_[n].pos.x, another_box_[n].pos.y);
-        cv::Point ep = cv::Point(sp.x + another_box_[n].size.width, sp.y + another_box_[n].size.height);
-        cv::rectangle(mat, sp, ep, 0, cv::FILLED);
-
-        // 文字のサイズと位置
         int baseline = 0;
-        cv::Size text_size = cv::getTextSize(text_list[n],
-            cv::FONT_HERSHEY_SIMPLEX | cv::FONT_ITALIC, 1, 1, &baseline);
+        cv::Size text_size = cv::getTextSize(
+            text_list[n], cv::FONT_HERSHEY_SIMPLEX | cv::FONT_ITALIC, 1, 1, &baseline);
 
-        cv::Point tp(
-            another_box_[n].pos.x + (another_box_[n].size.width - text_size.width) / 2,
-            another_box_[n].pos.y + (another_box_[n].size.height + text_size.height) / 2
+        cv::Point sp_box(another_box_[n].pos.x,
+                         another_box_[n].pos.y);
+        cv::Point ep_box(sp_box.x + another_box_[n].size.width,
+                         sp_box.y + another_box_[n].size.height + baseline + 2);
+
+        // 黒矩形で文字の下の残像を消す
+        cv::rectangle(mat, sp_box, ep_box, cv::Scalar(0, 0, 0), cv::FILLED);
+
+        // 文字描画
+        cv::Point text_org(
+            sp_box.x + (another_box_[n].size.width - text_size.width) / 2,
+            sp_box.y + (another_box_[n].size.height + text_size.height) / 2
         );
 
-        cv::putText(mat, text_list[n], tp,
-            cv::FONT_HERSHEY_SIMPLEX | cv::FONT_ITALIC, 1,
-            cv::Scalar(255, 255, 255), 1);
+        cv::putText(mat, text_list[n], text_org,
+                    cv::FONT_HERSHEY_SIMPLEX | cv::FONT_ITALIC, 1,
+                    cv::Scalar(255, 255, 255), 1);
     }
 }
 

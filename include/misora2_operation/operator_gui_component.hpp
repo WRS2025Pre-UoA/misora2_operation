@@ -75,10 +75,9 @@ public:
     const std::string V_maneuve_btn_name = "V_maneuve";
     const std::string V_stateOP_btn_name = "V_stateOP";
     const std::string V_stateCL_btn_name = "V_stateCL";
-    const std::string debrisN_btn_name = "deb_Normal";
-    const std::string debrisD_btn_name = "deb_Debris";
-    const std::string debrisC_btn_name = "deb_Clear";
-    const std::string missing_btn_name = "missing";
+    const std::string IR_btn_name = "IR-AR~~";
+    const std::string CD_btn_name = "CD-AR~~";
+    const std::string VIR_btn_name = "VIR-AR~~";
 
     // 最新の値を格納確認するリスト----------------------------------
     std::string latest_topic = "None";
@@ -87,6 +86,10 @@ public:
     // MISORAからの画像が飛んできたか否か----------------------------
     bool misora_image_flag = false;
     bool ml_image_flag = false;
+    // 瓦礫除去など一時的に使用するボタン画面生成　ボタン名保存変数
+    std::string temp_name;
+    std::vector<std::string> names;
+    std::vector<cv::Rect> rects;
 
     // エリアIDを手入力か自己位置から入力するかのモード
     std::string area_mode = "1"; // 1：手入力　2：自己位置から推測
@@ -99,6 +102,8 @@ public:
     // std::string dir = "/home/ros/wrs2025/src/misora2_operation/data/";
     // std::string dir = "/root/wrs/src/misora2_operation/data/";
 
+    // 空画像変数
+    cv::Mat zeros_image = cv::Mat::zeros(480, 640, CV_8UC1);
     //　受け取ったメッセージを格納-------------------------------------
     struct qr_set{
         std::string id; // QRコードのID
@@ -108,7 +113,6 @@ public:
         std::string data; // 検出結果
         cv::Mat image; // 検出時の画像
         cv::Mat raw_image; //　プログラム修正用の画像
-        // std::string image_type; // rosメッセージに変換の際に使用 bgr8 rgb8 mono8 yuv422-yuy2
     }result_data;
     cv::Mat temporary_image; // MISORAから送信されてくる生画像
     // ボタンの条件分岐で使うリスト------------------------------------------------------
@@ -143,26 +147,23 @@ private:
     void data_pub_callback();// デジタルツインへ一定間隔で検査し、揃ったら報告
     void on_timer(); // tfの位置情報を定期的に取得してpos_dataに格納する関数
     int search_areaID(double x, double y); // x,y,height,widthからエリアIDを見つける
-    void send_data(std::string str1, std::string str2, cv::Mat& img1); // デジタルツインへ送信を行う関数
+    void send_data(std::string str1, std::string str2, cv::Mat& img1, std::string str3); // デジタルツインへ送信を行う関数
     void save_img(std::string name, cv::Mat& img);
+    std::vector<cv::Rect> create_buttons(std::vector<std::string> names); // エリア検査など一時的に選択画面を生成
+    static void mouse_callback(int event, int x, int y, int, void* userdata); // マウスのクリック判定
 
     rclcpp::Publisher<MyAdaptedType>::SharedPtr publish_gui_;// ボタン画面を流すpublisher
     rclcpp::Subscription<geometry_msgs::msg::Point>::SharedPtr click_;// ボタンクリック座標を受け取るsubscriber
     rclcpp::TimerBase::SharedPtr view_;// ボタン画面を定期的に流すタイマー
     rclcpp::TimerBase::SharedPtr color_reset_timer_;// 一定時間待って、ボタンの色を白に戻す
     rclcpp::TimerBase::SharedPtr error_message_timer_;// MISORAからの画像がないとき実行できないと表示
-    // rclcpp::TimerBase::SharedPtr reopen_window_;// 確認画面が表示されてるときにsendボタンが押されたとき
-    
-    // std::map<std::string, rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr> bool_triggers_;// 連続処理信号
-    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr triggers_;// 連続処理信号 pressure, qr, cracks
 
-    // std::map<std::string, rclcpp::Subscription<std_msgs::msg::String>::SharedPtr> receive_data_;// 検出結果をうけとる　
-    // std::map<std::string, rclcpp::Subscription<MyAdaptedType>::SharedPtr> receive_image_;// 検出画像をうけとる
+    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr triggers_;// 連続処理信号 pressure, qr, cracks
 
     std::map<std::string, rclcpp::Subscription<misora2_custom_msg::msg::Custom>::SharedPtr> receive_results_;// 検出画像をうけとる
 
     rclcpp::Subscription<sensor_msgs::msg::CompressedImage>::SharedPtr receive_raw_image_;// MISORAから来る生画像
-    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr received_image_metal_;// misoraからの減肉画像を受け取る
+    // rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr received_image_metal_;// misoraからの減肉画像を受け取る
     // デジタルツイン関連----------------------------------------------------------------------------------------
     rclcpp::Publisher<misora2_custom_msg::msg::Digital>::SharedPtr dt_data_publisher_;// デジタルツイン報告ノードへ送る
     rclcpp::TimerBase::SharedPtr data_pub_;
