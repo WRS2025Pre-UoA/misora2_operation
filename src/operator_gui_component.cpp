@@ -560,11 +560,11 @@ void MisoraGUI::save_img(std::string name, cv::Mat& img){
 // 画面初期化--------------------------------------------------------------------------------------------------------------------------------------------------------
 cv::Mat MisoraGUI::setup(){
     DrawTool canvas(width,height,0);//画面描画
-
+    // RCLCPP_INFO_STREAM(this->get_logger(), "Setup GUI for " << buttons_name_.size());
     for(size_t i = 0; i < buttons_name_.size(); i++){
         int row = i / btn_per_row;  // 行数
         int col = i % btn_per_row;  // 列数
-
+        RCLCPP_INFO_STREAM(this->get_logger(), "Setup button " << buttons_name_[i]);
         // ボタン位置を更新
         Button btn(cv::Point(x_offset + col * (btn_width + btn_space_row), y_offset + row * (btn_height + btn_space_col)),cv::Size(btn_width,btn_height));
         buttons_.push_back(btn); // ボタンをリストに追加
