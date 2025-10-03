@@ -126,9 +126,8 @@ public:
     misora2_custom_msg::msg::Pos pos_data;
     
     // 減肉関連----------------------------------------------------------------
-    double ML_max = std::numeric_limits<double>::min();// 減肉の最小な値 全然切り抜かれていないとする
-    std::string ML_max_S = "";
-    std::string ML_area_S = "";
+    double ML_min = std::numeric_limits<double>::max();// 減肉の最小な値 全然切り抜かれていないとする
+    std::string ML_min_S = "";
     cv::Mat ML_image = cv::Mat::zeros(640, 480, CV_8UC1);// 減肉の最小時の画像
     cv::Mat ML_temp_image; // 減肉の一時的な画像を保存
     explicit MisoraGUI(const rclcpp::NodeOptions &options);

@@ -187,12 +187,12 @@ void MisoraGUI::process(std::string topic_name) {
     }
     else if(topic_name == metal_loss_btn_name){
         std::string t = input_func("Input Metal loss value [mm: 0.0-9.0]");
-        if(ML_max <= (9.0 - std::stod(t))){ // 9.0[mm]の板からx[mm]切り抜かれている 残りの厚さがt[mm]のとき x = 9.0 - t
+        if(ML_min >= (std::stod(t))){ // 9.0[mm]の板からx[mm]切り抜かれている 残りの厚さがt[mm]のとき x = 9.0 - t
             
-            ML_max = (9.0 - std::stod(t));
+            ML_min = (std::stod(t));
             std::ostringstream oss;
-            oss << std::fixed << std::setprecision(3) << ML_max;
-            ML_max_S = oss.str();
+            oss << std::fixed << std::setprecision(3) << ML_min;
+            ML_min_S = oss.str();
             // 損失範囲
 
             ML_image = zeros_image;
@@ -201,12 +201,12 @@ void MisoraGUI::process(std::string topic_name) {
     else { //MISORA PCから送られてきた画像をそのまま流す
         if(topic_name == metal_loss_send_btn_name){
             std::ostringstream oss;
-            oss << std::fixed << std::setprecision(3) << ML_max;
+            oss << std::fixed << std::setprecision(3) << ML_min;
             result_data.data = "CORROSION,"+oss.str();
             result_data.image = ML_image;
             // reset
-            ML_max = std::numeric_limits<double>::min();// 減肉の最小な値
-            ML_max_S = "";
+            ML_min = std::numeric_limits<double>::max();// 減肉の最小な値
+            ML_min_S = "";
             ML_image = zeros_image;// 減肉の最小時の画像
         }
         else {
@@ -632,7 +632,7 @@ void MisoraGUI::rewriteMessage(){
         else text_list.push_back("Area ID: None");
     }
     if (param == "P3"){
-        if (!ML_max_S.empty()) text_list.push_back("Temp Value: " + ML_max_S);
+        if (!ML_min_S.empty()) text_list.push_back("Temp Value: " + ML_min_S);
         else text_list.push_back("Temp Value: None");
     }
 
