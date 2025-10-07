@@ -564,7 +564,7 @@ cv::Mat MisoraGUI::setup(){
     for(size_t i = 0; i < buttons_name_.size(); i++){
         int row = i / btn_per_row;  // 行数
         int col = i % btn_per_row;  // 列数
-        RCLCPP_INFO_STREAM(this->get_logger(), "Setup button " << buttons_name_[i]);
+        // RCLCPP_INFO_STREAM(this->get_logger(), "Setup button " << buttons_name_[i]);
         // ボタン位置を更新
         Button btn(cv::Point(x_offset + col * (btn_width + btn_space_row), y_offset + row * (btn_height + btn_space_col)),cv::Size(btn_width,btn_height));
         buttons_.push_back(btn); // ボタンをリストに追加
@@ -601,7 +601,11 @@ cv::Mat MisoraGUI::setup(){
     }
     // for (int i = 0; i < buttons_.size(); i++) {
     //     RCLCPP_INFO(this->get_logger(), "Button %d: x=%d, y=%d, w=%d, h=%d", 
-    //         i, buttons_[i].rect.x, buttons_[i].rect.y, buttons_[i].rect.width, buttons_[i].rect.height);
+    //         i, buttons_[i].pos.x, buttons_[i].pos.y, buttons_[i].size.width, buttons_[i].size.height);
+    // }
+    // for (int i = 0; i < another_box_.size(); i++) {
+    //     RCLCPP_INFO(this->get_logger(), "Another %d: x=%d, y=%d, w=%d, h=%d", 
+    //         i, another_box_[i].pos.x, another_box_[i].pos.y, another_box_[i].size.width, another_box_[i].size.height);
     // }
     
     return canvas.getImage();
@@ -661,8 +665,9 @@ void MisoraGUI::rewriteMessage(){
         }
     } else {
         text_list.push_back("Value: None");
-        text_list.push_back("       " ); 
+        if (param == "P3")text_list.push_back("       " ); 
     }
+    // RCLCPP_INFO_STREAM(this->get_logger(), "Rewrite message for " << text_list.size() << " boxes and another box" << another_box_.size());
      // 描画処理
     for (size_t n = 0; n < text_list.size(); ++n) {
         int baseline = 0;
@@ -673,7 +678,9 @@ void MisoraGUI::rewriteMessage(){
                          another_box_[n].pos.y);
         cv::Point ep_box(sp_box.x + another_box_[n].size.width,
                          sp_box.y + another_box_[n].size.height + baseline + 2);
-
+        // RCLCPP_INFO_STREAM(this->get_logger(), "Rewrite message box " << n << ": " << text_list[n]);
+        // RCLCPP_INFO_STREAM(this->get_logger(), "  Box pos sp: (" << sp_box.x << ", " << sp_box.y << "), ep: (" << ep_box.x <<  ", " << ep_box.y << ")");
+        
         // 黒矩形で文字の下の残像を消す
         cv::rectangle(mat, sp_box, ep_box, cv::Scalar(0, 0, 0), cv::FILLED);
 
