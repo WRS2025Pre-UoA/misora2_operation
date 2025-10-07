@@ -160,7 +160,7 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
     
     // ボタンの画面生成
     mat = setup();
-    cv::imwrite("button_window.png",mat);
+    // cv::imwrite("button_window.png",mat);
     // 定期的にボタン画面をpublishするtimer関数
     view_ = this->create_wall_timer(100ms, std::bind(&MisoraGUI::timer_callback, this));
 }
