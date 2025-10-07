@@ -160,7 +160,7 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
     
     // ボタンの画面生成
     mat = setup();
-
+    cv::imwrite("button_window.png",mat);
     // 定期的にボタン画面をpublishするtimer関数
     view_ = this->create_wall_timer(100ms, std::bind(&MisoraGUI::timer_callback, this));
 }
@@ -493,7 +493,7 @@ void MisoraGUI::on_timer(){
 int MisoraGUI::search_areaID(double x, double y){
     // 領域外判定
     if (x < 0 || x > (areaHeight + areaPlayValue) || y < 0 || y > (areaWidth + areaPlayValue)) {
-        return -1;
+        return 99;
     }
     // セルサイズ
     double cell_h = areaHeight / 6.0; // x方向（前）
@@ -570,6 +570,7 @@ cv::Mat MisoraGUI::setup(){
         buttons_.push_back(btn); // ボタンをリストに追加
         canvas.drawButton_new(btn, buttons_name_[i], cv::Scalar(255, 255, 255), -1, cv::LINE_8, 0.78, cv::Scalar(0,0,0), 1);
     }
+
     bool isCompact = (param == "P1" || param == "P2" || param == "P3" || param == "P4" || param == "P6");
     int boxHeight = isCompact ? btn_height / 2 : btn_height;
     int gap = isCompact ? 8 : 10;
@@ -598,6 +599,10 @@ cv::Mat MisoraGUI::setup(){
 
         current_y += step;
     }
+    // for (int i = 0; i < buttons_.size(); i++) {
+    //     RCLCPP_INFO(this->get_logger(), "Button %d: x=%d, y=%d, w=%d, h=%d", 
+    //         i, buttons_[i].rect.x, buttons_[i].rect.y, buttons_[i].rect.width, buttons_[i].rect.height);
+    // }
     
     return canvas.getImage();
 }
