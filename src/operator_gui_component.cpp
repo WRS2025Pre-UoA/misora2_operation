@@ -485,9 +485,9 @@ void MisoraGUI::on_timer(){
     pos_data.x = trans_xyz.x;
     pos_data.y = trans_xyz.y;
     pos_data.z = trans_xyz.z;
-    pos_data.roll = roll;
-    pos_data.pitch = pitch;
-    pos_data.yaw = yaw;
+    pos_data.roll = roll * 180.0 / M_PI;
+    pos_data.pitch = pitch * 180.0 / M_PI;
+    pos_data.yaw = yaw * 180.0 / M_PI;
 }
 
 int MisoraGUI::search_areaID(double x, double y){
