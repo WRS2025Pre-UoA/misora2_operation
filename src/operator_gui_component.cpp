@@ -234,9 +234,8 @@ void MisoraGUI::process(std::string topic_name) {
                     double valve_result;
                     if(temp_name == "90") valve_result = rotation_angle / 90.0 * 100;
                     else if(temp_name == "180") valve_result = rotation_angle / 180.0 * 100;
-                    std::ostringstream oss;
-                    oss << std::fixed << std::setprecision(3) << valve_result;
-                    result_data.data = oss.str();
+                    int valve_result_i = static_cast<int>(valve_result);
+                    result_data.data = std::to_string(valve_result_i);
                     temp_name = "";
                     names.clear();
                     rects.clear();
