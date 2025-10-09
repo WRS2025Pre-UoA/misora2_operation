@@ -28,12 +28,12 @@ MisoraGUI::MisoraGUI(const rclcpp::NodeOptions &options)
 
     // ミッションごとのボタン表示名------------------------------------------------------------------------------------------
     std::map<std::string, std::vector<std::string>> pub_sub_topics = {
-        {"P1", {pressure_btn_name, qr_btn_name, V_maneuve_btn_name}},
-        {"P2", {pressure_btn_name, qr_btn_name, V_maneuve_btn_name, V_stateOP_btn_name, V_stateCL_btn_name}},
-        {"P3", {cracks_btn_name, qr_btn_name, metal_loss_btn_name, metal_loss_send_btn_name}},
-        {"P4", {qr_btn_name, IR_btn_name, CD_btn_name, V_maneuve_btn_name}},
-        {"P5", {qr_btn_name}},
-        {"P6", {pressure_btn_name, qr_btn_name, IR_btn_name, CD_btn_name, VIR_btn_name}}
+        {"P1", {pressure_btn_name, qr_btn_name, qr_M_btn_name, V_maneuve_btn_name}},
+        {"P2", {pressure_btn_name, qr_btn_name, qr_M_btn_name, V_maneuve_btn_name, V_stateOP_btn_name, V_stateCL_btn_name}},
+        {"P3", {cracks_btn_name, qr_btn_name, qr_M_btn_name, metal_loss_btn_name, metal_loss_send_btn_name}},
+        {"P4", {qr_btn_name, qr_M_btn_name, IR_btn_name, CD_btn_name, V_maneuve_btn_name}},
+        {"P5", {qr_btn_name,qr_M_btn_name}},
+        {"P6", {pressure_btn_name, qr_btn_name, qr_M_btn_name, IR_btn_name, CD_btn_name, VIR_btn_name}}
     };
 
     triggers_ = this->create_publisher<std_msgs::msg::String>("triggers", 10);
@@ -197,6 +197,11 @@ void MisoraGUI::process(std::string topic_name) {
 
             ML_image = zeros_image;
         }
+    }
+    else if(topic_name == qr_M_btn_name and !result_data.data.empty()){
+        std::string qr_id = input_func("Input QR code ID [e.g., E-PV-01]");
+        qr_data.id = qr_id;
+        latest_qr = true;
     }
     else { //MISORA PCから送られてきた画像をそのまま流す
         if(topic_name == metal_loss_send_btn_name){
@@ -383,9 +388,12 @@ std::string MisoraGUI::input_func(std::string show_message){
                 text += static_cast<char>(key);
             }
         }
-        // if (key >= 'a' && key <= 'z'){
-        //     text += std::toupper(static_cast<char>(key));
-        // }
+        if (key >= 'a' && key <= 'z'){
+            text += std::toupper(static_cast<char>(key));
+        }
+        else if (key == '-') {
+            text += '-';  // そのまま追加
+        }
         // バックスペース対応（必要なら）
         else if (key == 8 && !text.empty()) {
             text.pop_back();

@@ -69,6 +69,7 @@ public:
     std::vector<std::string> buttons_name_;//表示しているボタンのリスト
     const std::string pressure_btn_name = "pressure";
     const std::string qr_btn_name = "qr";
+    const std::string qr_M_btn_name = "qr_M";
     const std::string cracks_btn_name = "cracks";
     const std::string metal_loss_btn_name = "metal_loss";
     const std::string metal_loss_send_btn_name = "ML-send";
@@ -95,7 +96,7 @@ public:
     std::string area_mode = "1"; // 1：手入力　2：自己位置から推測
 
     // バルブ操作報告のとき回転角度から達成度を報告 or 達成度100%固定　フラグ
-    std::string valve_mode = "1"; // １：手入力　２：100%固定
+    std::string valve_mode = "2"; // １：手入力　２：100%固定
 
     // デバッグ用画像保存先
     std::string dir = "/home/misora2/misora2_ws/src/misora2_operation/data/";
