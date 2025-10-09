@@ -186,7 +186,7 @@ void MisoraGUI::process(std::string topic_name) {
         }
     }
     else if(topic_name == metal_loss_btn_name){
-        std::string t = input_func("Input Metal loss value [mm: 0.0-9.0]");
+        std::string t = input_func("Input Metal loss value [mm: 0.0-9.0]",2);
         if(ML_min >= (std::stod(t))){ // 9.0[mm]の板からx[mm]切り抜かれている 残りの厚さがt[mm]のとき x = 9.0 - t
             
             ML_min = (std::stod(t));
@@ -203,7 +203,7 @@ void MisoraGUI::process(std::string topic_name) {
             // RCLCPP_INFO(this->get_logger(), 
             //     "qr_M_btn_name pressed. result_data.data.size()=%zu, content=[%s]", 
             //     result_data.data.size(), result_data.data.c_str());
-            std::string qr_id = input_func("Input QR code ID [e.g., E-PV-01]");
+            std::string qr_id = input_func("Input QR code ID [e.g., E-PV-01]",1);
             qr_data.id = qr_id;
             latest_qr = true;
         }
@@ -239,7 +239,7 @@ void MisoraGUI::process(std::string topic_name) {
                     }
                     // std::string valve_type = input_func("Input valve type [1: 90, 2: 180]");
                     std::string message = (temp_name == "90") ? "Input rotation angle [0-90]" : "Input rotation angle [0-180]";
-                    std::string rotation_angle_S = input_func(message);
+                    std::string rotation_angle_S = input_func(message,2);
                     double rotation_angle = std::stod(rotation_angle_S);
                     double valve_result;
                     if(temp_name == "90") valve_result = rotation_angle / 90.0 * 100;
@@ -258,7 +258,7 @@ void MisoraGUI::process(std::string topic_name) {
                 cv::Mat temp = temporary_image.clone();
                 std::string areaID_m;
                 if (area_mode == "1"){
-                    areaID_m = "AR"+input_func("Input Area ID [AR{01 ~ 36}]");
+                    areaID_m = "AR"+input_func("Input Area ID [AR{01 ~ 36}]",2);
                     
                     // RCLCPP_INFO_STREAM(this->get_logger(),"Prepare data: areaID: " << areaID_m << ", result_data: " << result_data.data << ", Image Size: " << temp.cols << "x" << temp.rows << "x" <<temp.channels() );
                     // send_data(areaID_m, result_data.data, temp);
@@ -367,7 +367,7 @@ void MisoraGUI::mouse_click_callback(const geometry_msgs::msg::Point::SharedPtr 
 }
 
 // エリアIDや減肉値の手入力関数---------------------------------------------------------------------------------------------------------------------
-std::string MisoraGUI::input_func(std::string show_message){
+std::string MisoraGUI::input_func(std::string show_message, int input_mode){
     // 入力画面表示
     std::string text = "";
     while(true){
@@ -394,12 +394,14 @@ std::string MisoraGUI::input_func(std::string show_message){
                 text += static_cast<char>(key);
             }
         }
-        if (key >= 'a' && key <= 'z'){
+    
+        if (key >= 'a' && key <= 'z' && input_mode == 1) {
             text += std::toupper(static_cast<char>(key));
         }
-        else if (key == '-') {
+        else if (key == '-' && input_mode == 1) {
             text += '-';  // そのまま追加
         }
+    
         // バックスペース対応（必要なら）
         else if (key == 8 && !text.empty()) {
             text.pop_back();
@@ -588,18 +590,38 @@ cv::Mat MisoraGUI::setup(){
         canvas.drawButton_new(btn, buttons_name_[i], cv::Scalar(255, 255, 255), -1, cv::LINE_8, 0.78, cv::Scalar(0,0,0), 1);
     }
     // RCLCPP_INFO_STREAM(this->get_logger(), "Setup button num " << buttons_.size());
-    bool isCompact = (param == "P1" || param == "P2" || param == "P3" || param == "P4" || param == "P6");
-    int boxHeight = isCompact ? btn_height / 2 : btn_height;
-    int gap = isCompact ? 8 : 10;
-    int step = isCompact ? (btn_height - 10) : (btn_height - 5);
-
+    int boxHeight;
+    int gap;
+    int step;
     std::vector<std::string> labels;
-    if (isCompact) {
-        if (param == "P3") labels = {"ID: None", "Temp Value: None", "Value: None", "               "};
-        else labels = {"ID: None", "Area ID: None", "Value: None"};
-    } else {
+
+    if (param == "P3") {
+    // P3専用サイズ（より小さく）
+        boxHeight = btn_height / 2.5;  // 3分の1にするなど調整
+        gap = 6;
+        step = btn_height / 2;       // 行間も狭める
+        labels = {"ID: None", "Temp Value: None", "Value: None", "               "};
+    }
+    else if (param == "P1" || param == "P2" || param == "P4" || param == "P6") {
+        boxHeight = btn_height / 2;
+        gap = 8;
+        step = (btn_height - 10);
+        labels = {"ID: None", "Area ID: None", "Value: None"};
+    }
+    else {
+        boxHeight = btn_height;
+        gap = 10;
+        step = (btn_height - 5);
         labels = {"ID: None", "Value: None"};
     }
+
+    // std::vector<std::string> labels;
+    // if (isCompact) {
+    //     if (param == "P3") labels = {"ID: None", "Temp Value: None", "Value: None", "               "};
+    //     else labels = {"ID: None", "Area ID: None", "Value: None"};
+    // } else {
+    //     labels = {"ID: None", "Value: None"};
+    // }
 
     // 1つ目の位置
     int current_y = buttons_.back().pos.y + btn_height + gap;
