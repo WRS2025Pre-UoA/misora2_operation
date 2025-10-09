@@ -198,10 +198,15 @@ void MisoraGUI::process(std::string topic_name) {
             ML_image = zeros_image;
         }
     }
-    else if(topic_name == qr_M_btn_name and !result_data.data.empty()){
-        std::string qr_id = input_func("Input QR code ID [e.g., E-PV-01]");
-        qr_data.id = qr_id;
-        latest_qr = true;
+    else if(topic_name == qr_M_btn_name){
+        if (!result_data.data.empty()){
+            // RCLCPP_INFO(this->get_logger(), 
+            //     "qr_M_btn_name pressed. result_data.data.size()=%zu, content=[%s]", 
+            //     result_data.data.size(), result_data.data.c_str());
+            std::string qr_id = input_func("Input QR code ID [e.g., E-PV-01]");
+            qr_data.id = qr_id;
+            latest_qr = true;
+        }
     }
     else { //MISORA PCから送られてきた画像をそのまま流す
         if(topic_name == metal_loss_send_btn_name){
@@ -311,6 +316,7 @@ void MisoraGUI::mouse_click_callback(const geometry_msgs::msg::Point::SharedPtr 
         // クリック位置がボタンの範囲内にあるかチェック
         if (button_rect.contains(point)) {
             std::string button_name = buttons_name_[i];
+            // RCLCPP_INFO_STREAM(this->get_logger(), "Button '" << button_name << "' clicked at (" << point.x << ", " << point.y << ")");
             if(misora_image_flag){ // send以外のボタンを押したときMISORAからの画像が送られていなければ、処理を実行しない判定式
                 rewriteButton(buttons_[i],button_name,cv::Scalar(0,0,255));
                 // クリックされたボタンを赤色にした状態でGUIを再描画
@@ -398,6 +404,10 @@ std::string MisoraGUI::input_func(std::string show_message){
         else if (key == 8 && !text.empty()) {
             text.pop_back();
         }
+        // else if (key == 8 && text.empty()) {
+        //     cv::destroyAllWindows();
+        //     break;
+        // }
         else if (key == 13 || key == 10){
             if(!text.empty()){
                 cv::destroyAllWindows();
@@ -577,7 +587,7 @@ cv::Mat MisoraGUI::setup(){
         buttons_.push_back(btn); // ボタンをリストに追加
         canvas.drawButton_new(btn, buttons_name_[i], cv::Scalar(255, 255, 255), -1, cv::LINE_8, 0.78, cv::Scalar(0,0,0), 1);
     }
-
+    // RCLCPP_INFO_STREAM(this->get_logger(), "Setup button num " << buttons_.size());
     bool isCompact = (param == "P1" || param == "P2" || param == "P3" || param == "P4" || param == "P6");
     int boxHeight = isCompact ? btn_height / 2 : btn_height;
     int gap = isCompact ? 8 : 10;
