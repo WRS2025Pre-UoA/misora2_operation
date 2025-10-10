@@ -225,7 +225,7 @@ void MisoraGUI::process(std::string topic_name) {
                 result_data.image = zeros_image;
             }
             else if(topic_name == V_stateCL_btn_name){
-                result_data.data = "0"; // CLOSE-> 0
+                result_data.data = "０"; // CLOSE-> 0
                 result_data.image = zeros_image;
             }
             else if(topic_name == V_maneuve_btn_name){
